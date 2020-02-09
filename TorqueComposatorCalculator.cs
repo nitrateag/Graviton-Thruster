@@ -24,53 +24,24 @@ namespace IngameScript
 
         public class TorqueComposatorCalculator
         {
-            IMyTextSurface lcd1 = null;
-            IMyTextSurface lcd2 = null;
-            public void setLCD(IMyTextSurface LCD1, IMyTextSurface LCD2)
+            
+
+            public void printSimplex(ref StringBuilder str, ref double[] simplex, int nbColumn, int nbLine, int line_sel = -1, int col_sel = -1)
             {
-                lcd1 = LCD1;
-                lcd2 = LCD2;
-                lcd1.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
-                lcd2.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
-                lcd1.Font = "Green";
-                lcd2.Font = "Green";
-                lcd1.WriteText("");
-                lcd2.WriteText("");
-
-            }
-            public void print(string str)
-            {
-
-                if (lcd1 == null)
+                for (int line = 0; line < nbLine*nbColumn; line += nbColumn)
                 {
-                    return;
-                }
-                float nbLineMax = 21;
-
-
-                if (lcd2 == null)
-                {
-                lcd1.WriteText("");
-                    lcd1.WriteText(str);
-                    str = lcd1.GetText() + str;
-                }
-                else
-                {
-                    str = lcd1.GetText() + lcd2.GetText() + str;
-                    lcd1.WriteText("");
-                    lcd2.WriteText("");
-
-                    var multiLine = str.Split('\n');
-                    for (int i = 0; i < multiLine.Length; ++i)
+                    for (int column = 0; column < nbColumn; ++column)
                     {
-                        if (i < nbLineMax)
-                            lcd1.WriteText(multiLine[i] + '\n', true);
+                        if (line == line_sel && column == col_sel)
+                            str.Append($"[{simplex[line + column], 8:G3}]");
+                            //str.AppendFormat($"[{0,7:G5}]", simplex[line + column]);
                         else
-                            lcd2.WriteText(multiLine[i] + '\n', true);
-
+                            str.Append($"{simplex[line + column], 10:G3}");
+                            //str.AppendFormat("{0,7:G5}", simplex[line + column]);
                     }
+                    str.Append("\n");
                 }
-                return;
+                str.Append("\n");
 
             }
 
@@ -135,7 +106,7 @@ namespace IngameScript
                 }
             }
 
-            public void ComputeSolution(MyGridProgram debug)
+            public void ComputeSolution(ref StringBuilder strDebug, bool useDebug)
             {
 
                 /* We have to solve a problem for each side of the ship. For the side UpDown (axe = 1), it look like:
@@ -182,6 +153,9 @@ namespace IngameScript
 
                 for (int axe = 0; axe < 3; ++axe)
                 {
+                    if (useDebug)
+                        strDebug.AppendLine($"___ axe {axe} ___");
+
 
                     var z = dist_thrust2CenterMass_bySide[axe][(axe + 1) % 3];
                     var x = dist_thrust2CenterMass_bySide[axe][(axe + 2) % 3];
@@ -326,7 +300,6 @@ namespace IngameScript
                     * _________ 
                     */
 
-                    debug.Echo("StartCompute");
                     int countNbPivot = 0;
 
                     var linkLineToThruster = new int[nbLine-2];
@@ -337,9 +310,6 @@ namespace IngameScript
                     var line_S_current = line_S2;
                     while (countNbPivot < 100)
                     {
-                        debug.Echo("StartWhile" + countNbPivot);
-
-
                     /* step 2.1 : find the column :
                     * 
                     * we will select the comlumn between [col_0, col-2n-1] who have the higher values at line_S2.
@@ -395,28 +365,10 @@ namespace IngameScript
                         *   
                         */
                         ++countNbPivot;
-                        if (axe == 0)
+                        if (useDebug)
                         {
-                            string currentSimplex = "simplex " + countNbPivot + " :\n";
-                            for (int line = 0; line <= line_S2; line += nbColumn)
-                            {
-
-                                for (int column = 0; column < nbColumn; ++column)
-                                {
-                                    string elementStr = "";
-                                    if (line == line_sel && column == col_sel)
-                                        elementStr += "[" + Math.Round(simplex[line + column], 1) + "]";
-                                    //currentSimplex += String.Format("{0,-15}", "[" + Math.Round(simplex[line + column], 3) + "]");
-                                    else
-                                        //currentSimplex += String.Format("{0,-15}", Math.Round(simplex[line + column], 3));
-                                        elementStr += Math.Round(simplex[line + column], 1);
-                                    while (elementStr.Length < 5)
-                                        elementStr += "_";
-                                    currentSimplex += elementStr;
-                                }
-                                currentSimplex += "\n";
-                            }
-                            print(currentSimplex);
+                            strDebug.AppendLine($"___ simplex {countNbPivot} ___");
+                            printSimplex(ref strDebug, ref simplex, nbColumn, nbLine, line_sel, col_sel);
                         }
 
                         //debug.Echo("gaussian pivot"+ countNbPivot + " in line" + line_sel + " col" + col_sel + "\n");
@@ -425,7 +377,6 @@ namespace IngameScript
                         var dataColumn_sel = new double[nbLine];
                         for (int i = 0; i < nbLine; ++i)
                             dataColumn_sel[i] = simplex[i * nbColumn + col_sel];
-
 
                         for (int column = 0; column < nbColumn; ++column)
                         {
@@ -441,7 +392,6 @@ namespace IngameScript
                                 simplex[line + column] -= simplex[line_sel + column] * dataColumn_sel[line /nbColumn];
                         }
 
-
                         /* step 2.4 : record the link between line and thruster associated:
                         * 
                         *   
@@ -450,23 +400,6 @@ namespace IngameScript
 
                     } //end compute simplex
 
-                       if (axe == 0)
-                        {
-                            string currentSimplex = "simplex " + countNbPivot + " :\n";
-                            for (int line = 0; line <= line_S2; line += nbColumn)
-                            {
-
-                                for (int column = 0; column < nbColumn; ++column)
-                                {
-                                    string elementStr = ""+Math.Round(simplex[line + column], 1);
-                                    while (elementStr.Length < 5)
-                                        elementStr += "_";
-                                    currentSimplex += elementStr;
-                                }
-                                currentSimplex += "\n";
-                            }
-                            print(currentSimplex);
-                        }
 
                     for (int line = 0; line < nbLine - 2; ++line)
                     {
@@ -474,35 +407,20 @@ namespace IngameScript
                             Solution[axe][linkLineToThruster[line]] = (float)(simplex[line * nbColumn + col_res] - 9.81);
                     }
 
-                } // end for each axes
-                print(ToString());
-            }//end function compute
-
-            public override string ToString()
-            {
-                string str = "";
-
-                for (int axe = 0; axe < 3; ++axe)
-                {
-
-                    var z = dist_thrust2CenterMass_bySide[axe][(axe + 1) % 3];
-                    var x = dist_thrust2CenterMass_bySide[axe][(axe + 2) % 3];
-                    int n = dist_thrust2CenterMass_bySide[axe][0].Count();
-
-                    //str += z.ToString() + "\n";
-                    //str += x.ToString() + "\n";
-
-                    float sumSol = 0;
-                    foreach (var value in Solution[axe])
+                    if (useDebug)
                     {
-                        str += value + "\n";
-                        sumSol += value;
+                        strDebug.AppendLine("___ Result simplex ___");
+                        printSimplex(ref strDebug, ref simplex, nbColumn, nbLine);
+
+                        strDebug.Append("___ Solution ___\n");
+                        foreach (var value in Solution[axe])
+                        {
+                            strDebug.AppendFormat("{0:F}N\n", value);
+                        }
                     }
 
-                    str += sumSol + "\n\n";
-                }
-                return str;
-            }
+                } // end for each axes
+            }//end function compute
         }
 
        

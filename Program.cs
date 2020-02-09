@@ -60,6 +60,7 @@ namespace IngameScript
         string outDebug = "";
         IMyTextSurface lcd1 = null;
         IMyTextSurface lcd2 = null;
+        IMyTextSurface lcd3 = null;
 
         IMyCockpit cockpit = null;
         //Vector3 currentSideEnabled = new Vector3(0, 0, 0);
@@ -99,7 +100,7 @@ namespace IngameScript
 
             //init
 
-
+            
             List<IMyCockpit> allCockpit = new List<IMyCockpit>();
 
             GridTerminalSystem.GetBlocksOfType(allCockpit);
@@ -116,15 +117,21 @@ namespace IngameScript
             }
             lcd1 = cockpit.GetSurface(0);
             lcd2 = cockpit.GetSurface(1);
+            lcd3 = cockpit.GetSurface(2);
+            if (lcd1 != null)
+            {
+                lcd1.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+                lcd1.Font = "Green";
+            }
             if (lcd2 != null)
             {
                 lcd2.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
                 lcd2.Font = "Green";
             }
-            if (lcd1 != null)
+            if (lcd3 != null)
             {
-                lcd1.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
-                lcd1.Font = "Green";
+                lcd3.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+                lcd3.Font = "Green";
             }
 
             Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update1;
@@ -183,35 +190,28 @@ namespace IngameScript
             Vector3D.Rotate(ref centerOfMass, ref B_abs2B_ship, out centerOfMass);
             centerOfMass = centerOfMass + (cockpit.Position * 2.5f);
 
-            voir la diff entre cockpit.GetPosition() et cockpit.Position * 2.5f
-
-
+            //voir la diff entre cockpit.GetPosition() et cockpit.Position * 2.5f
             TorqueComposatorCalculator torqueComposator = new TorqueComposatorCalculator();
-
-
-            if(GridTerminalSystem.GetBlockWithName("LCD1") != null && (IMyTextSurface)GridTerminalSystem.GetBlockWithName("LCD2") != null)
-                torqueComposator.setLCD((IMyTextSurface)GridTerminalSystem.GetBlockWithName("LCD1"), (IMyTextSurface)GridTerminalSystem.GetBlockWithName("LCD2"));
-            
-            //torqueComposator.setLCD((IMyTextSurface)GridTerminalSystem.GetBlockWithName("LCD1"), cockpit.GetSurface(2));
+            StringBuilder strDebugCompute = new StringBuilder();
 
             try                     
             {
             torqueComposator.setThrusters(LeftRight_thruster, UpDown_thruster, BackForw_thruster, centerOfMass);
 
             Echo("ComputeSolution");
-            torqueComposator.ComputeSolution(this);
+            torqueComposator.ComputeSolution(ref strDebugCompute, true);
             }
             catch(Exception e)
             {
-                PrintLog();
                 Echo($"Exception: {e}\n---");
+                Echo(strDebugCompute.ToString());
+                Me.CustomData = strDebugCompute.ToString();
 
                 throw;
             }
+            Me.CustomData = strDebugCompute.ToString();
 
             ThrustFactorComposator = torqueComposator.Solution;
-            Echo("3");
-
 
             //outDebug += torqueComposator.ToString();
 
