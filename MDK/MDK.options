@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!-- DO NOT DELETE THIS FILE.-->
+<!-- MDK is using this file to identify this project as an MDK project. -->
+<mdk version="1.1.31">
+  <gamebinpath enabled="no">A:\SteamLibrary\SteamApps\common\SpaceEngineers\Bin64</gamebinpath>
+  <installpath>c:\users\nitrateag\appdata\local\microsoft\visualstudio\15.0_a712702e\extensions\ahqrg3d1.ake</installpath>
+  <outputpath>C:\Users\Nitrateag\AppData\Roaming\SpaceEngineers\IngameScripts\local</outputpath>
+  <trimtypes>yes</trimtypes>
+  <minify>yes</minify>
+  <ignore>
+    <folder>mdk</folder>
+  </ignore>
+</mdk>
