@@ -25,11 +25,11 @@ namespace IngameScript
             public IMyGravityGenerator m_gravGen;
             List<IMyVirtualMass> m_mass = new List<IMyVirtualMass>(26);
             public Base6Directions.Axis axe;
-            public readonly float m_artificialMass;
-            public readonly float m_maximumThrust;
+            public readonly float m_artificialMass_kg;  //In tonne or Mega grammes
+            public readonly float m_maximumThrust_kN;   //In Mega Newtown
             short m_orientationThrusterCorrection;
 
-            float m_thrust;
+            float m_thrust_MN; //In Mega Newtown
             bool m_enabled;
 
             public bool Enabled
@@ -55,15 +55,15 @@ namespace IngameScript
             {
                 get
                 {
-                    return m_thrust;
+                    return m_thrust_MN;
                 }
 
                 set
                 {
-                    m_thrust = value;
-                    Enabled = m_thrust != 0f;
-                    m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust ;
-                    //m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust / m_artificialMass;
+                    m_thrust_MN = value;
+                    Enabled = m_thrust_MN != 0f;
+                    //m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust ;
+                    m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust_MN / m_artificialMass_kg;
                 }
             }
 
@@ -123,14 +123,13 @@ namespace IngameScript
                     }
                 }
 
-                m_artificialMass = m_mass.Sum(mass => mass.VirtualMass);
-                //m_maximumThrust = 9.81f * m_artificialMass;
-                m_maximumThrust = 9.81f;// * m_artificialMass;
+                m_artificialMass_kg = m_mass.Sum(mass => mass.VirtualMass);
+                m_maximumThrust_kN = 9.81f * m_artificialMass_kg / 1000;
             }
 
             public override string ToString()
             {
-                var eff = Math.Round(m_thrust / m_maximumThrust * 10);
+                var eff = Math.Round(m_thrust_MN / m_maximumThrust_kN * 10);
                 string str = "[";
                 for(int i = -10; i <= 10; ++i)
                 {
@@ -142,7 +141,7 @@ namespace IngameScript
                         str += "-";
                 }
 
-                return str += "] " + m_thrust + "/" + m_maximumThrust;
+                return str += "] " + m_thrust_MN + "/" + m_maximumThrust_kN;
             }
 
             public Vector3D GetPosition() { return m_gravGen.Position*2.5D; }

@@ -308,13 +308,13 @@ namespace IngameScript
 
         public void LogThrusters()
         {
-            LogLn("X : (N)");
+            LogLn("X : (kN)");
             foreach (MyGravitonThruster ggD in LeftRight_thruster)
                 LogLn(ggD.ToString());
-            LogLn("Y : (N)");
+            LogLn("Y : (kN)");
             foreach (MyGravitonThruster ggD in UpDown_thruster)
                 LogLn(ggD.ToString());
-            LogLn("Z : (N)");
+            LogLn("Z : (kN)");
             foreach (MyGravitonThruster ggD in BackForw_thruster)
                 LogLn(ggD.ToString());
         }

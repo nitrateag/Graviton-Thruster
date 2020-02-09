@@ -55,7 +55,7 @@ namespace IngameScript
             public float[][] Solution = new float[3][];
 
             // thrustPowerMax[side][#thruster]
-            List<float>[] thrustPowerMax = new List<float>[3];
+            float[][] thrustPowerMax = new float[3][];
 
             public void setThrusters(List<MyGravitonThruster> thrust_leftRight, List<MyGravitonThruster> thrust_UpDown, List<MyGravitonThruster> thrust_ForwBack,  Vector3D massCenter)
             {
@@ -67,6 +67,9 @@ namespace IngameScript
                 Solution[0] = new float[(thrust_leftRight.Count)];
                 Solution[1] = new float[(thrust_UpDown.Count)];
                 Solution[2] = new float[(thrust_ForwBack.Count)];
+                thrustPowerMax[0] = new float[(thrust_leftRight.Count)];
+                thrustPowerMax[1] = new float[(thrust_UpDown.Count)];
+                thrustPowerMax[2] = new float[(thrust_ForwBack.Count)];
 
                 for (int axe = 0; axe < 3; ++axe)
                 {
@@ -81,8 +84,7 @@ namespace IngameScript
                     dist_thrust2CenterMass_bySide[0][0][i] = (float)vector3D.X;
                     dist_thrust2CenterMass_bySide[0][1][i] = (float)vector3D.Y;
                     dist_thrust2CenterMass_bySide[0][2][i] = (float)vector3D.Z;
-  //                  Solution[0][i] = 9.81F;
-                   // thrustPowerMax[0].Add(thrust_leftRight[i].m_maximumThrust);
+                    thrustPowerMax[0][i] = thrust_leftRight[i].m_maximumThrust_kN;
                 }
 
                 for (int i = 0; i < thrust_UpDown.Count; ++i)
@@ -91,8 +93,7 @@ namespace IngameScript
                     dist_thrust2CenterMass_bySide[1][0][i] = (float)vector3D.X;
                     dist_thrust2CenterMass_bySide[1][1][i] = (float)vector3D.Y;
                     dist_thrust2CenterMass_bySide[1][2][i] = (float)vector3D.Z;
-//                    Solution[1][i] = 9.81F;
-                    //thrustPowerMax[1].Add(thrust_leftRight[i].m_maximumThrust);
+                    thrustPowerMax[1][i] = thrust_UpDown[i].m_maximumThrust_kN;
                 }
 
                 for (int i = 0; i < thrust_ForwBack.Count; ++i)
@@ -101,8 +102,7 @@ namespace IngameScript
                     dist_thrust2CenterMass_bySide[2][0][i] = (float)vector3D.X;
                     dist_thrust2CenterMass_bySide[2][1][i] = (float)vector3D.Y;
                     dist_thrust2CenterMass_bySide[2][2][i] = (float)vector3D.Z;
- //                   Solution[2][i] = 9.81F;
-                    //thrustPowerMax[2].Add(thrust_leftRight[i].m_maximumThrust);
+                    thrustPowerMax[2][i] = thrust_ForwBack[i].m_maximumThrust_kN;
                 }
             }
 
@@ -115,7 +115,8 @@ namespace IngameScript
                  *    { f1*x1 + f2*x2 + ... + fn*xn = 0
                  * 
                  * with n = count of thruster on UpDown_Side
-                 * fi = power of thruster #x on UpDown_Side, fi = [-9.81, 9.81]
+                 * fi = power of thruster #x on UpDown_Side, fi = [-fmi, fmi]
+                 * fmi = maximum power of thruster i
                  * zi = distance between thruster #i to center_of_mass, projected on axe Z
                  * xi = distance between thruster #i to center_of_mass, projected on axe X
                  * 
@@ -131,16 +132,17 @@ namespace IngameScript
                  * 
                  * To use Simplex methode, we must have our variables fi greater than or equal to 0.
                  * 
-                 * Fi = fi + 9.81
-                 * imply : fi = Fi - 9.81
-                 * imply : 0 <= Fi <= 2*9.81
+                 * { Fi = fi + fmi
+                 * { -fmi <= fi <= fmi
+                 * imply : { fi = Fi - fmi
+                 *         { 0 <= Fi <= 2*fmi
                  * 
                  * we introduce F1 in 1/ and S :
                  * 
-                 * 1/ => 2/ : { F1*z1 + F2*z2 + ... + Fn*zn = 9.81 * sum(zi)
-                 *            { F1*x1 + F2*x2 + ... + Fn*xn = 9.81 * sum(x1)
+                 * 1/ => 2/ : { F1*z1 + F2*z2 + ... + Fn*zn = sum(fmi*zi)
+                 *            { F1*x1 + F2*x2 + ... + Fn*xn = sum(fmi*x1)
                  *            
-                 * S = F1 + F2 + ... + Fn = 9.81 * n           
+                 * S = F1 + F2 + ... + Fn = sum(fmi)           
                  *            
                  * So, now we can begin the simplex on 2/ with Fi like variable :
                  * 
@@ -159,20 +161,28 @@ namespace IngameScript
 
                     var z = dist_thrust2CenterMass_bySide[axe][(axe + 1) % 3];
                     var x = dist_thrust2CenterMass_bySide[axe][(axe + 2) % 3];
+                    var fm = thrustPowerMax[axe];
                     int n = dist_thrust2CenterMass_bySide[axe][0].Count();
 
-                    float sumZ = 0, sumX = 0;           // needed for later
-                    for (int column = 0; column < n; ++column)
+                    float sumZ = 0f, sumX = 0f;           // needed for later
+                    float sum_fm_Z = 0f, sum_fm_X = 0f; // needed for later
+                    float sumFm = 0f;                    // needed for later
+                    for (int i = 0; i < n; ++i)
                     {
-                        sumZ += z[column];
-                        sumX += x[column];
+                        sumZ += z[i];
+                        sumX += x[i];
+                        sum_fm_Z += z[i] * fm[i];
+                        sum_fm_X += x[i] * fm[i];
+                        sumFm += fm[i];
                     }
 
-                    //Now, sumZ and sumX > 0
+                    //Now, let's make sumZ and sumX > 0
                     if (sumZ < 0 && sumX < 0)
                     {
                         sumZ *= -1;
                         sumX *= -1;
+                        sum_fm_Z *= -1;
+                        sum_fm_X *= -1;
                         for (int column = 0; column < n; ++column)
                         {
                             z[column] *= -1;
@@ -182,12 +192,14 @@ namespace IngameScript
                     else if (sumZ < 0)
                     {
                         sumZ *= -1;
+                        sum_fm_Z *= -1;
                         for (int column = 0; column < n; ++column)
                             z[column] *= -1;
                     }
                     else if (sumX < 0)
                     {
                         sumX *= -1;
+                        sum_fm_X *= -1;
                         for (int column = 0; column < n; ++column)
                             x[column] *= -1;
                     }
@@ -198,27 +210,27 @@ namespace IngameScript
                     * 
                     * the system to solve in the simplex : wint [n] the number of graviton thruster 
                     * 
-                    * 3/ : { F1*z1 + F2*z2 + ... + Fn*zn = 9.81 * sum(zi)
-                    *      { F1*x1 + F2*x2 + ... + Fn*xn = 9.81 * sum(x1)
-                    *      { F1                          <= 19.62
-                    *      {         F2                  <= 19.62
+                    * 3/ : { F1*z1 + F2*z2 + ... + Fn*zn = sum(fmi*zi)
+                    *      { F1*x1 + F2*x2 + ... + Fn*xn = sum(fmi*xi)
+                    *      { F1                          <= 2*fm1
+                    *      {         F2                  <= 2*fm2
                     *      {            ...              <=  ... 
-                    *      {                       Fn    <= 19.62
-                    *      { F1   + F2     + ... + Fn     = 9.81*n = S
+                    *      {                       Fn    <= 2*fmn
+                    *      { F1   + F2     + ... + Fn     = sum(fmi) = S
                     *      
                     *       
                     * 
                     * 
                     * Add slack variables (s1 ... sn) on 3/, and a line S2 = sum of equation in 2/:
                     * 
-                    * 4/ : { F1                                         + s1                = 19.62
-                    *      {              F2                                 + s2           = 19.62
+                    * 4/ : { F1                                         + s1                = 2*fm1
+                    *      {              F2                                 + s2           = 2*fm2
                     *      {                           ...                         ...      =  ... 
-                    *      {                                 Fn                        + sn = 19.62
-                    *      { F1*z1      + F2*z2      + ... + Fn*zn                          = 9.81 * sum(zi)
-                    *      { F1*x1      + F2*x2      + ... + Fn*xn                          = 9.81 * sum(x1)
-                    *      { F1         + F2         + ... + Fn                             = 9.81*n = S
-                    *      { F1*(z1+x1) + F2*(z2+x2) + ... + Fn*(zn+xn)                     = 9.81*n = S2
+                    *      {                                 Fn                        + sn = 2*fmn
+                    *      { F1*z1      + F2*z2      + ... + Fn*zn                          = sum(fmi*zi)
+                    *      { F1*x1      + F2*x2      + ... + Fn*xn                          = sum(fmi*xi)
+                    *      { F1         + F2         + ... + Fn                             = sum(fmi) = S
+                    *      { F1*(z1+x1) + F2*(z2+x2) + ... + Fn*(zn+xn)                     = sum(fmi*zi)+sum(fmi*xi) = S2
                     *      
                     *  
                     *  So, the simplex's matrix look like
@@ -226,16 +238,16 @@ namespace IngameScript
                     * 
                     *                                                   col_res 
                     *               _ col_0  ...      col_n      ...    col_2n (nbcolumn = 2n+1) _
-                    *              |    1   0  ... 0    1  0  0  ... 0   19.62                    | line_0
-                    *              |    0   1  ... 0    0  1  0  ... 0   19.62                    | line_1
+                    *              |    1   0  ... 0    1  0  0  ... 0   2*fm1                    | line_0
+                    *              |    0   1  ... 0    0  1  0  ... 0   2*fm2                    | line_1
                     *              |    0   0  \   0    0  0  \  ... 0     |                      |
                     *              |    0   0   \  0    0  0  0  \.. 0     |                      |
                     *   Simplex =  |    0   0    \ 0    0  0  0  ..\ 0     |                      |
-                    *              |    0   0 ...  1    0  0  0  ... 1   19.62                    | line_n-1
-                    *              |    z1  z2 ... zn   0  0  0  ... 0    9.81*sum(zi)            | line_n   / line_z
-                    *              |    x1  x2 ... xn   0  0  0  ... 0    9.81*sum(xi)            | line_n+1 / line_x
-                    *              |    1   1 ...  1    0  0  0  ... 0    9.81*n                  | line_n+2 / line_S
-                    *              |_ x1+z1  ... xn+zn  0  0  0  ... 0    9.81*(sum(zi)+sum(xi)) _| line_n+3 / line_S2 (so, there is n+4 lines)
+                    *              |    0   0 ...  1    0  0  0  ... 1   2*fmn                    | line_n-1
+                    *              |    z1  z2 ... zn   0  0  0  ... 0   sum(fmi*zi)              | line_n   / line_z
+                    *              |    x1  x2 ... xn   0  0  0  ... 0   sum(fmi*xi)              | line_n+1 / line_x
+                    *              |    1   1 ...  1    0  0  0  ... 0   sum(fmi)                 | line_n+2 / line_S
+                    *              |_ x1+z1  ... xn+zn  0  0  0  ... 0   sum(fmi*zi)+sum(fmi*xi) _| line_n+3 / line_S2 (so, there is n+4 lines)
                     *             
                     *   The line line_n+3 is the sum of line who have an artificial viraible ... withot the artificial variable himself,
                     *   so, line_n+3 = line_n + line_n+1 - a1 - a2
@@ -263,10 +275,6 @@ namespace IngameScript
                         simplex[line_z + column] = z[column];
                         //line_x
                         simplex[line_x + column] = x[column];
-
-                        //sumZ += z[column];
-                        //sumX += x[column];
-
                         //line_S
                         simplex[line_S + column]  = 1;
                         //line_S2
@@ -278,13 +286,13 @@ namespace IngameScript
                     //Fullfillment of the last column : col_res
                     // FullFillment of col_res, start at line2 end at line_n+1
                     for (int line = 0; line < line_z; line += nbColumn)
-                        simplex[line + col_res] = 19.62;
+                        simplex[line + col_res] = 2*fm[line/nbColumn];
 
                     // 4 last values of last column :
-                    simplex[line_z  + col_res] = 9.81 * sumZ;
-                    simplex[line_x  + col_res] = 9.81 * sumX;
-                    simplex[line_S  + col_res] = 9.81 * n;
-                    simplex[line_S2 + col_res] = 9.81 * (sumZ + sumX);
+                    simplex[line_z + col_res] = sum_fm_Z;             // sum(fmi*zi)            
+                    simplex[line_x + col_res] = sum_fm_X;             // sum(fmi*xi)            
+                    simplex[line_S + col_res] = sumFm;                // sum(fmi)               
+                    simplex[line_S2 + col_res] = sum_fm_Z + sum_fm_X; // sum(fmi * zi) + sum(fmi * xi)
 
                     //Now, we will check that all coeff of col_res are > 0, and multiply the line by -1 if they are
                     if (sumZ < 0)
@@ -403,8 +411,9 @@ namespace IngameScript
 
                     for (int line = 0; line < nbLine - 2; ++line)
                     {
-                        if (linkLineToThruster[line] < n)
-                            Solution[axe][linkLineToThruster[line]] = (float)(simplex[line * nbColumn + col_res] - 9.81);
+                        var idThruster = linkLineToThruster[line];
+                        if (idThruster < n)
+                            Solution[axe][idThruster] = (float)(simplex[line * nbColumn + col_res]) - fm[idThruster];
                     }
 
                     if (useDebug)
@@ -413,9 +422,9 @@ namespace IngameScript
                         printSimplex(ref strDebug, ref simplex, nbColumn, nbLine);
 
                         strDebug.Append("___ Solution ___\n");
-                        foreach (var value in Solution[axe])
+                        for (int i = 0; i < n; ++i)
                         {
-                            strDebug.AppendFormat("{0:F}N\n", value);
+                            strDebug.Append($"{Solution[axe][i]}kN  - {Solution[axe][i] / fm[i]:P}\n");
                         }
                     }
 
