@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -62,8 +62,7 @@ namespace IngameScript
                 {
                     m_thrust_MN = value;
                     Enabled = m_thrust_MN != 0f;
-                    //m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust ;
-                    m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust_MN / m_artificialMass_kg;
+                    m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust_MN / m_artificialMass_kg*1000;
                 }
             }
 
@@ -102,11 +101,8 @@ namespace IngameScript
                 }
 
                 //On récupère la liste des masses artificielles qui sont dans le champ de gravité
-                m_gravGen.FieldSize = new Vector3(6, 6, 6);
-                Vector3 gravityFeild = m_gravGen.FieldSize / 5f; // new Vector3(m_gravGen.FieldSize.X, m_gravGen.FieldSize.Y, m_gravGen.FieldSize.Z);
+                Vector3 gravityFeild = m_gravGen.FieldSize / 5f; //On divise par 2.5 car 1 bloc fait 2.5 de coté, et aussi par 2, car on souhaite avoir le rayon à la place du diamètre diamètre. Donc 5
                 Vector3 distance = new Vector3();
-
-                //gravityFeild /= 5; //On divise par 2.5 car 1 bloc fait 2.5 de coté, et aussi par 2, car on souhaite avoir le rayon à la place du diamètre diamètre. Donc 5
 
                 foreach (IMyVirtualMass mass in allMass)
                 {

@@ -134,7 +134,7 @@ namespace IngameScript
                 lcd3.Font = "Green";
             }
 
-            Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update1;
+            Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update10;
 
             IMyBlockGroup allThruster = GridTerminalSystem.GetBlockGroupWithName("Gravity Thruster");
 
@@ -212,6 +212,7 @@ namespace IngameScript
             Me.CustomData = strDebugCompute.ToString();
 
             ThrustFactorComposator = torqueComposator.Solution;
+            Echo("SUCCESS ComputeSolution");
 
             //outDebug += torqueComposator.ToString();
 
