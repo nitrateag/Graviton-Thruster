@@ -2,7 +2,7 @@ from vpython import *
 
 # import time
 from enum import Enum
-
+from functools import reduce
 
 class ThrusterElementType(Enum):
     artificialMass = 1
@@ -46,6 +46,7 @@ class generator(ThrusterElement):
         self.up = up
         self.diameter = diameter
         self.height = height
+        self.acceleration = 9.81
 
 
     def pos(self):
@@ -76,19 +77,23 @@ class generator(ThrusterElement):
 
 
 class thruster:
-    diameter = 3
-    height = 9
-
-    volume = 0
-    massArt = 0
-    nbMass = 0
-    nbGenerator = 0
+    # diameter = 3
+    # height = 9
+    #
+    # volume = 0
+    # massArt = 0
+    # nbMass = 0
+    #
+    # elem = [[[]]]
 
     def __init__(self, height, diameter=3):
         self.elem = [[[]]]
         self.height = height
         self.diameter = diameter
-        self.open = height % 2
+        self.open = 1 - height % 2
+        self.massArt = 0
+        self.nbMass = 0
+        self.nbGenerator = 0
 
         for x in range(self.diameter):
             self.elem.append([[]])
@@ -116,6 +121,19 @@ class thruster:
             ++self.nbGenerator
 
         self.volume = self.height * self.diameter ** 2
+
+        # self.maxThrust = 0
+        # self.maxThrust = sum([gen.acceleration * reduce(lambda x, y : x.mass + y.mass, self.massInGravFeild(gen))
+        #                       for gen in self.elem[self.middle][self.middle] if gen.type == ThrusterElementType.generator])
+        self.maxThrust = sum([gen.acceleration * sum([ i.mass for i in self.massInGravFeild(gen)])
+                              for gen in self.elem[self.middle][self.middle]
+                              if gen.type == ThrusterElementType.generator])
+        print("MaxThrust = ", self.maxThrust, "kN")
+
+        # for gen in self.elem[self.middle][self.middle]:
+        #     if gen.type == ThrusterElementType.generator:
+        #         self.maxThrust += gen.acceleration * reduce(lambda x, y : x.mass + y.mass, self.massInGravFeild(gen))
+
 
 
     def massInGravFeild(self, gen):

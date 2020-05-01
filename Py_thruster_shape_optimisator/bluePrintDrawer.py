@@ -16,7 +16,7 @@ myScene.up = vector(0,0,1)
 # myScene.lights[0].visible = False
 local_light(pos=myScene.camera.pos, color=color.gray(0.45))
 
-th = thruster(6, 3)
+th = thruster(4, 3)
 th.ui()
 
 myScene.center = vector(th.diameter/2, th.diameter/2, th.height/2)
