@@ -23,7 +23,7 @@ namespace IngameScript
         public class MyGravitonThruster
         {
             public IMyGravityGenerator m_gravGen;
-            List<IMyVirtualMass> m_mass = new List<IMyVirtualMass>(26);
+            List<SharedMass> m_mass = new List<SharedMass>(26);
             public Base6Directions.Axis axe;
             public readonly float m_artificialMass_kg;  //In tonne or Mega grammes
             public readonly float m_maximumThrust_kN;   //In Mega Newtown
@@ -48,8 +48,7 @@ namespace IngameScript
 
                     m_enabled = value;
                     m_gravGen.Enabled = m_enabled;
-                    foreach (IMyVirtualMass mass in m_mass)
-                        mass.Enabled = m_enabled;
+                    m_mass.ForEach(shrMass => shrMass.Enabled = m_enabled);
                 }
             }
 
@@ -68,7 +67,7 @@ namespace IngameScript
                 }
             }
 
-            public MyGravitonThruster(IMyGravityGenerator gravGen, List<IMyVirtualMass> allMass)
+            public MyGravitonThruster(IMyGravityGenerator gravGen, List<SharedMass> allMass)
             {
                 m_gravGen = gravGen;
                 m_enabled = m_gravGen.Enabled;
@@ -152,19 +151,21 @@ namespace IngameScript
                 Vector3 distance = new Vector3();
                 m_position = new Vector3D(0, 0, 0);
 
-                foreach (IMyVirtualMass mass in allMass)
+                IMyVirtualMass mass;
+                foreach (SharedMass shrMass in allMass)
                 {
+                    mass = shrMass.mass;
                     distance = mass.Position - m_gravGen.Position;
                     if (Math.Abs(distance.X) <= gravityFeild.X
                          && Math.Abs(distance.Y) <= gravityFeild.Y
                          && Math.Abs(distance.Z) <= gravityFeild.Z)
                     {
-                        m_mass.Add(mass);
+                        m_mass.Add(shrMass);
                         m_position += mass.Position * mass.VirtualMass;
                     }
                 }
 
-                m_artificialMass_kg = m_mass.Sum(mass => mass.VirtualMass);
+                m_artificialMass_kg = m_mass.Sum(shrmass => shrmass.mass.VirtualMass);
                 m_maximumThrust_kN = 9.81f * m_artificialMass_kg / 1000;
 
                 if (m_artificialMass_kg > 0)

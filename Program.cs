@@ -151,9 +151,12 @@ namespace IngameScript
                 return;
             }
             allGravityGen = new List<IMyGravityGenerator>();
-            List<IMyVirtualMass> allGravityMass = new List<IMyVirtualMass>();
+            List<SharedMass> allGravityMass = new List<SharedMass>();
             allThruster.GetBlocksOfType(allGravityGen);
-            allThruster.GetBlocksOfType(allGravityMass);
+
+            List<IMyVirtualMass> tmpAllGravityMass = new List<IMyVirtualMass>();
+            allThruster.GetBlocksOfType(tmpAllGravityMass);
+            tmpAllGravityMass.ForEach(mass => allGravityMass.Add(new SharedMass(mass)));
 
             LeftRight_thruster = new List<MyGravitonThruster>(4);
             UpDown_thruster = new List<MyGravitonThruster>(4);
@@ -357,8 +360,12 @@ namespace IngameScript
             Vector3 direction;
             if (cockpit.DampenersOverride)
             {
-                if (speedByCockpitOrientation.AbsMax() > 1)
-                    speedByCockpitOrientation /= speedByCockpitOrientation.AbsMax();
+                var maxCurrentSpeedDirection = speedByCockpitOrientation.AbsMax();
+                if (maxCurrentSpeedDirection > 1)
+                    speedByCockpitOrientation /= maxCurrentSpeedDirection;
+                else
+                    speedByCockpitOrientation *= Math.Max((maxCurrentSpeedDirection * maxCurrentSpeedDirection), 0.1);
+
 
                 //LogV3(speedByCockpitOrientation, "DampenersOverride : ");
                 direction = Vector3.Transform(new Vector3(

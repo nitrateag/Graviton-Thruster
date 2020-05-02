@@ -102,6 +102,7 @@
     <Analyzer Include="c:\users\nitrateag\appdata\local\microsoft\visualstudio\15.0_a712702e\extensions\ahqrg3d1.ake\Analyzers\MDKAnalyzer.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="SharedMass.cs" />
     <Compile Include="MyGravitonThruster.cs" />
     <Compile Include="MDK\Bootstrapper.cs" />
     <AdditionalFiles Include="MDK\MDK.options">
