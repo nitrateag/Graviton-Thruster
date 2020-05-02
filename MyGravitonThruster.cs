@@ -160,17 +160,18 @@ namespace IngameScript
                          && Math.Abs(distance.Z) <= gravityFeild.Z)
                     {
                         m_mass.Add(mass);
-                        m_position += mass.Position;
+                        m_position += mass.Position * mass.VirtualMass;
                     }
                 }
 
-                if (m_mass.Count > 0)
-                    m_position = (m_position * 2.5D) / (m_mass.Count);
+                m_artificialMass_kg = m_mass.Sum(mass => mass.VirtualMass);
+                m_maximumThrust_kN = 9.81f * m_artificialMass_kg / 1000;
+
+                if (m_artificialMass_kg > 0)
+                    m_position = (m_position * 2.5D) / m_artificialMass_kg;
                 else
                     m_position = m_gravGen.Position * 2.5D;
 
-                m_artificialMass_kg = m_mass.Sum(mass => mass.VirtualMass);
-                m_maximumThrust_kN = 9.81f * m_artificialMass_kg / 1000;
             }
 
             public override string ToString()
