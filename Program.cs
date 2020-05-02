@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -103,17 +103,24 @@ namespace IngameScript
             
             List<IMyCockpit> allCockpit = new List<IMyCockpit>();
 
-            GridTerminalSystem.GetBlocksOfType(allCockpit);
+            GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
 
             if (allCockpit.Count == 0)
-                outDebug += ("no cockit or control panel found");
+            {
+                Echo("--\nERROR : no cockit who can control thrusters found\n--\n");
+                return;
+            }
             else if (allCockpit.Count == 1)
                 cockpit = allCockpit[0];
             else
             {
-                cockpit = allCockpit[0];
-
-                outDebug += ("multi Cocpit is not supported yet");
+                //allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit)
+                cockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
+                if (cockpit == null)
+                {
+                    Echo("--\nERROR : If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them\n--\n");
+                    return;
+                }
             }
             lcd1 = cockpit.GetSurface(0);
             lcd2 = cockpit.GetSurface(1);
@@ -140,7 +147,7 @@ namespace IngameScript
 
             if (allThruster == null)
             {
-                Echo("group \"Gravity Thruster\" not found");
+                Echo("--\nERROR : set all yours gravity thrusters component (Gravity generator & artificial mass) in a same group \"Gravity Thruster\"\n--\n");
                 return;
             }
             allGravityGen = new List<IMyGravityGenerator>();
@@ -194,16 +201,21 @@ namespace IngameScript
             TorqueComposatorCalculator torqueComposator = new TorqueComposatorCalculator();
             StringBuilder strDebugCompute = new StringBuilder();
 
+            var prgLcd = Me.GetSurface(0);
+            prgLcd.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+            prgLcd.Font = "Green";
+
+
             try                     
             {
-            torqueComposator.setThrusters(LeftRight_thruster, UpDown_thruster, BackForw_thruster, centerOfMass);
-
-            Echo("ComputeSolution");
-            torqueComposator.ComputeSolution(ref strDebugCompute, true);
+                torqueComposator.setThrusters(LeftRight_thruster, UpDown_thruster, BackForw_thruster, centerOfMass);
+                torqueComposator.ComputeSolution(ref strDebugCompute, true);
             }
             catch(Exception e)
             {
-                Echo($"Exception: {e}\n---");
+                prgLcd.WriteText(":: GRAVITY THRUSTER ::\nCannot compute thruster balance");
+
+                Echo($"\nCannot compute thruster balance Exception:\n {e}\n---");
                 Echo(strDebugCompute.ToString());
                 Me.CustomData = strDebugCompute.ToString();
 
@@ -212,8 +224,8 @@ namespace IngameScript
             Me.CustomData = strDebugCompute.ToString();
 
             ThrustFactorComposator = torqueComposator.Solution;
-            Echo("SUCCESS ComputeSolution");
-
+            prgLcd.WriteText(":: GRAVITY THRUSTER ::\nGravity Thruster is operational");
+            Echo(prgLcd.GetText());
             //outDebug += torqueComposator.ToString();
 
             PrintLog();
