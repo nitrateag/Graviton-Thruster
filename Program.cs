@@ -51,6 +51,9 @@ namespace IngameScript
         // have to use the template if you don't want to. Just do so the first
         // time to see what a utility class looks like.
 
+        //Name of group for filter onlycomponent user wnat to use
+        const string gravityThrusterGroupName = "Gravity Thruster";
+
         //The direction of graviton thruster are exprimed in base of ship grid
         List<MyGravitonThruster> BackForw_thruster;
         List<MyGravitonThruster> LeftRight_thruster;
@@ -73,8 +76,25 @@ namespace IngameScript
 
         float[][] ThrustFactorComposator;
 
+        public void printError(string errorMsg)
+        {
+            printMsg("ERROR: " + errorMsg);
+        }
+        public void printMsg(string Msg)
+        {
+            Echo("\n------\n" + Msg + "\n------\n");
+            Me.GetSurface(0).WriteText(Me.GetSurface(0).GetText() + "\nERROR: " + Msg);
+        }
+
+
         public Program()
         {
+            var prgLcd = Me.GetSurface(0);
+            prgLcd.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+            prgLcd.Font = "Green";
+            Me.GetSurface(0).WriteText("::GRAVITY THRUSTER::\n");
+
+
             // The constructor, called only once every session and
             // always before any other method is called. Use it to
             // initialize your script. 
@@ -100,14 +120,14 @@ namespace IngameScript
 
             //init
 
-            
-            List<IMyCockpit> allCockpit = new List<IMyCockpit>();
+
+            List <IMyCockpit> allCockpit = new List<IMyCockpit>();
 
             GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
 
             if (allCockpit.Count == 0)
             {
-                Echo("--\nERROR : no cockit who can control thrusters found\n--\n");
+                printError("No cockit who can control thrusters found");
                 return;
             }
             else if (allCockpit.Count == 1)
@@ -118,7 +138,7 @@ namespace IngameScript
                 cockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
                 if (cockpit == null)
                 {
-                    Echo("--\nERROR : If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them\n--\n");
+                    printError("If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them");
                     return;
                 }
             }
@@ -141,48 +161,58 @@ namespace IngameScript
                 lcd3.Font = "Green";
             }
 
-            Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update10;
+            IMyBlockGroup allThruster = GridTerminalSystem.GetBlockGroupWithName(gravityThrusterGroupName);
+            List<IMyVirtualMass> allGravityMass = new List<IMyVirtualMass>();
+            allGravityGen = new List<IMyGravityGenerator>();
 
-            IMyBlockGroup allThruster = GridTerminalSystem.GetBlockGroupWithName("Gravity Thruster");
-
-            if (allThruster == null)
+            if (allThruster != null)
             {
-                Echo("--\nERROR : set all yours gravity thrusters component (Gravity generator & artificial mass) in a same group \"Gravity Thruster\"\n--\n");
+                allThruster.GetBlocksOfType(allGravityGen);
+                allThruster.GetBlocksOfType(allGravityMass);
+            }
+
+            if (allGravityGen.Count == 0)
+                GridTerminalSystem.GetBlocksOfType(allGravityGen);
+
+            if (allGravityMass.Count == 0)
+                GridTerminalSystem.GetBlocksOfType(allGravityMass);
+
+            if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
+            {
+                printError($"We didn't found yours thruster component : \n - gravity generator found = {allGravityMass.Count}\n - artificial mass found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{gravityThrusterGroupName}\"");
                 return;
             }
-            allGravityGen = new List<IMyGravityGenerator>();
-            List<SharedMass> allGravityMass = new List<SharedMass>();
-            allThruster.GetBlocksOfType(allGravityGen);
 
-            List<IMyVirtualMass> tmpAllGravityMass = new List<IMyVirtualMass>();
-            allThruster.GetBlocksOfType(tmpAllGravityMass);
-            tmpAllGravityMass.ForEach(mass => allGravityMass.Add(new SharedMass(mass)));
+            List <SharedMass> allShrGravityMass = new List<SharedMass>();
+            allGravityMass.ForEach(mass => allShrGravityMass.Add(new SharedMass(mass)));
 
-            LeftRight_thruster = new List<MyGravitonThruster>(4);
-            UpDown_thruster = new List<MyGravitonThruster>(4);
-            BackForw_thruster = new List<MyGravitonThruster>(4);
+            LeftRight_thruster = new List<MyGravitonThruster>(12);
+            UpDown_thruster = new List<MyGravitonThruster>(12);
+            BackForw_thruster = new List<MyGravitonThruster>(12);
 
 
             foreach (IMyGravityGenerator gg in allGravityGen)
             {
+                var newGravitonThurster = new MyGravitonThruster(gg, allShrGravityMass);
+                if (newGravitonThurster.m_maximumThrust_kN == 0) //If there is no artificial mass in the feild of gravity generator, we don't record it
+                    continue;
+
                 switch (gg.Orientation.Up)
                 {
                     case Base6Directions.Direction.Right:
                     case Base6Directions.Direction.Left:
-                        LeftRight_thruster.Add(new MyGravitonThruster(gg, allGravityMass));
-                        //currentSideEnabled.X += gg.Enabled ? 1 : 0;
+                        LeftRight_thruster.Add(newGravitonThurster);
+
                         break;
 
                     case Base6Directions.Direction.Up:
                     case Base6Directions.Direction.Down:
-                        UpDown_thruster.Add(new MyGravitonThruster(gg, allGravityMass));
-                        //currentSideEnabled.Y += gg.Enabled ? 1 : 0;
+                        UpDown_thruster.Add(newGravitonThurster);
                         break;
 
                     case Base6Directions.Direction.Forward:
                     case Base6Directions.Direction.Backward:
-                        BackForw_thruster.Add(new MyGravitonThruster(gg, allGravityMass));
-                        //currentSideEnabled.Z += gg.Enabled ? 1 : 0;
+                        BackForw_thruster.Add(newGravitonThurster);
                         break;
                 }
 
@@ -204,11 +234,6 @@ namespace IngameScript
             TorqueComposatorCalculator torqueComposator = new TorqueComposatorCalculator();
             StringBuilder strDebugCompute = new StringBuilder();
 
-            var prgLcd = Me.GetSurface(0);
-            prgLcd.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
-            prgLcd.Font = "Green";
-
-
             try                     
             {
                 torqueComposator.setThrusters(LeftRight_thruster, UpDown_thruster, BackForw_thruster, centerOfMass);
@@ -216,7 +241,7 @@ namespace IngameScript
             }
             catch(Exception e)
             {
-                prgLcd.WriteText(":: GRAVITY THRUSTER ::\nCannot compute thruster balance");
+                printError("Cannot compute thruster balance\nSee custom data of program bloc for more info");
 
                 Echo($"\nCannot compute thruster balance Exception:\n {e}\n---");
                 Echo(strDebugCompute.ToString());
@@ -227,11 +252,12 @@ namespace IngameScript
             Me.CustomData = strDebugCompute.ToString();
 
             ThrustFactorComposator = torqueComposator.Solution;
-            prgLcd.WriteText(":: GRAVITY THRUSTER ::\nGravity Thruster is operational");
-            Echo(prgLcd.GetText());
+            printMsg("Gravity Thruster is operational");
             //outDebug += torqueComposator.ToString();
 
             PrintLog();
+            Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update10;
+
         }
 
         public void Save()
@@ -364,7 +390,7 @@ namespace IngameScript
                 if (maxCurrentSpeedDirection > 1)
                     speedByCockpitOrientation /= maxCurrentSpeedDirection;
                 else
-                    speedByCockpitOrientation *= Math.Max((maxCurrentSpeedDirection * maxCurrentSpeedDirection), 0.1);
+                    speedByCockpitOrientation *= Math.Max(maxCurrentSpeedDirection * maxCurrentSpeedDirection, 0.1);
 
 
                 //LogV3(speedByCockpitOrientation, "DampenersOverride : ");
