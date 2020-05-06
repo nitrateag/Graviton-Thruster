@@ -261,9 +261,10 @@ namespace IngameScript
             Me.CustomData = strDebugCompute.ToString();
 
             ThrustFactorComposator = torqueComposator.OptimalThrustPowerPerThruster_kN;
-            maximumThrustPerSide_kN = new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
-                torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
-                torqueComposator.sumOptimalThrustPowerPerSide_kN[2]
+            // we set 1 by default to counter some division by 0
+            maximumThrustPerSide_kN = new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0] == 0 ? float.MaxValue : torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
+                torqueComposator.sumOptimalThrustPowerPerSide_kN[1] == 0 ? float.MaxValue : torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
+                torqueComposator.sumOptimalThrustPowerPerSide_kN[2] == 0 ? float.MaxValue : torqueComposator.sumOptimalThrustPowerPerSide_kN[2]
                 );
             maxSpeedBy10Ticks_ms = (maximumThrustPerSide_kN * 1000) / (shipMass * 6);
 
