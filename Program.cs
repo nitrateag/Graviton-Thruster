@@ -52,7 +52,13 @@ namespace IngameScript
         // time to see what a utility class looks like.
 
         //Name of group for filter onlycomponent user wnat to use
-        const string gravityThrusterGroupName = "Gravity Thruster";
+        const string gravityThrusterGroupName = "Graviton Thruster";
+        float shipMass;
+
+        //Maximum thrust available on each side
+        Vector3D maximumThrustPerSide_kN;
+        //Maximum speed gained every 10 Ticks
+        Vector3D maxSpeedBy10Ticks_ms;
 
         //The direction of graviton thruster are exprimed in base of ship grid
         List<MyGravitonThruster> BackForw_thruster;
@@ -76,14 +82,14 @@ namespace IngameScript
 
         float[][] ThrustFactorComposator;
 
-        public void printError(string errorMsg)
+        public void printErrorPgr(string errorMsg)
         {
-            printMsg("ERROR: " + errorMsg);
+            printMsgPgr("ERROR: " + errorMsg);
         }
-        public void printMsg(string Msg)
+        public void printMsgPgr(string Msg)
         {
-            Echo("\n------\n" + Msg + "\n------\n");
-            Me.GetSurface(0).WriteText(Me.GetSurface(0).GetText() + "\nERROR: " + Msg);
+            Echo(Msg);
+            Me.GetSurface(0).WriteText(Me.GetSurface(0).GetText() + "\n" + Msg);
         }
 
 
@@ -94,7 +100,7 @@ namespace IngameScript
             prgLcd.Font = "Green";
             Me.GetSurface(0).WriteText("::GRAVITY THRUSTER::\n");
 
-
+            
             // The constructor, called only once every session and
             // always before any other method is called. Use it to
             // initialize your script. 
@@ -127,7 +133,7 @@ namespace IngameScript
 
             if (allCockpit.Count == 0)
             {
-                printError("No cockit who can control thrusters found");
+                printErrorPgr("No cockit who can control thrusters found");
                 return;
             }
             else if (allCockpit.Count == 1)
@@ -138,7 +144,7 @@ namespace IngameScript
                 cockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
                 if (cockpit == null)
                 {
-                    printError("If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them");
+                    printErrorPgr("If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them");
                     return;
                 }
             }
@@ -148,7 +154,10 @@ namespace IngameScript
             if (lcd1 != null)
             {
                 lcd1.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
-                lcd1.Font = "Green";
+                lcd1.Font = "Monospace";
+                lcd1.FontSize = 0.6f;
+                lcd1.FontColor = Color.Green;
+
             }
             if (lcd2 != null)
             {
@@ -160,6 +169,7 @@ namespace IngameScript
                 lcd3.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
                 lcd3.Font = "Green";
             }
+            shipMass = cockpit.CalculateShipMass().TotalMass;
 
             IMyBlockGroup allThruster = GridTerminalSystem.GetBlockGroupWithName(gravityThrusterGroupName);
             List<IMyVirtualMass> allGravityMass = new List<IMyVirtualMass>();
@@ -179,7 +189,7 @@ namespace IngameScript
 
             if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
             {
-                printError($"We didn't found yours thruster component : \n - gravity generator found = {allGravityMass.Count}\n - artificial mass found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{gravityThrusterGroupName}\"");
+                printErrorPgr($"We didn't found yours thruster component : \n - gravity generator found = {allGravityMass.Count}\n - artificial mass found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{gravityThrusterGroupName}\"");
                 return;
             }
 
@@ -202,7 +212,6 @@ namespace IngameScript
                     case Base6Directions.Direction.Right:
                     case Base6Directions.Direction.Left:
                         LeftRight_thruster.Add(newGravitonThurster);
-
                         break;
 
                     case Base6Directions.Direction.Up:
@@ -241,7 +250,7 @@ namespace IngameScript
             }
             catch(Exception e)
             {
-                printError("Cannot compute thruster balance\nSee custom data of program bloc for more info");
+                printErrorPgr("Cannot compute thruster balance\nSee custom data of program bloc for more info");
 
                 Echo($"\nCannot compute thruster balance Exception:\n {e}\n---");
                 Echo(strDebugCompute.ToString());
@@ -251,8 +260,16 @@ namespace IngameScript
             }
             Me.CustomData = strDebugCompute.ToString();
 
-            ThrustFactorComposator = torqueComposator.Solution;
-            printMsg("Gravity Thruster is operational");
+            ThrustFactorComposator = torqueComposator.OptimalThrustPowerPerThruster_kN;
+            maximumThrustPerSide_kN = new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
+                torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
+                torqueComposator.sumOptimalThrustPowerPerSide_kN[2]
+                );
+            maxSpeedBy10Ticks_ms = (maximumThrustPerSide_kN * 1000) / (shipMass * 6);
+
+            printMsgPgr("Gravity Thruster is operational");
+            LogV3Prg(maximumThrustPerSide_kN * 1000 / shipMass, "Maximum Acceleration :", "m /s²");
+            LogV3Prg(maximumThrustPerSide_kN, "Maximum Thrust :", "kN");
             //outDebug += torqueComposator.ToString();
 
             PrintLog();
@@ -317,15 +334,24 @@ namespace IngameScript
             LogLn("Y : " + v.Y + " " + unit);
             LogLn("Z : " + v.Z + " " + unit);
         }
-        public void LogV3(Vector3D v, string title)
+
+        public void LogV3(Vector3D v, string title, string units = "")
         {
             LogLn(title);
-            outDebug += "X:" + Math.Round(v.X, 3);
-            outDebug += " Y:" + Math.Round(v.Y, 3);
-            LogLn(" Z: " + Math.Round(v.Z, 3));
+            outDebug += "X:" + (v.X > 0 ? " " : "") + Math.Round(v.X, 3) + units;
+            outDebug += " Y:" + (v.Y > 0 ? " " : "") + Math.Round(v.Y, 3) + units;
+            LogLn(" Z: " + (v.Z > 0 ? " " : "") + Math.Round(v.Z, 3) + units);
         }
 
-        
+        public void LogV3Prg(Vector3D v, string title, string units)
+        {
+            printMsgPgr(title);
+            string str = "X:" + (v.X > 0 ? " " : "") + Math.Round(v.X, 3) + units;
+            str += " Y:" + (v.Y > 0 ? " " : "") + Math.Round(v.Y, 3) + units;
+            printMsgPgr(str + " Z: " + (v.Z > 0 ? " " : "") + Math.Round(v.Z, 3) + units);
+        }
+
+
         public void LogM3(MatrixD m, string title)
         {
             LogLn(title);
@@ -350,16 +376,17 @@ namespace IngameScript
 
         public void LogThrusters()
         {
-            LogLn("X : (kN)");
+            LogLn("X :");
             foreach (MyGravitonThruster ggD in LeftRight_thruster)
                 LogLn(ggD.ToString());
-            LogLn("Y : (kN)");
+            LogLn("Y :");
             foreach (MyGravitonThruster ggD in UpDown_thruster)
                 LogLn(ggD.ToString());
-            LogLn("Z : (kN)");
+            LogLn("Z :");
             foreach (MyGravitonThruster ggD in BackForw_thruster)
                 LogLn(ggD.ToString());
         }
+
 
         public void Main(string argument, UpdateType updateSource)
         {
@@ -382,23 +409,19 @@ namespace IngameScript
             Vector3D.Rotate(ref speedByCockpitOrientation, ref B_abs2B_cockpit, out speedByCockpitOrientation);
             LogV3(speedByCockpitOrientation, "Speed Local Cockpit: m/s");
 
-
             Vector3 direction;
             if (cockpit.DampenersOverride)
             {
-                var maxCurrentSpeedDirection = speedByCockpitOrientation.AbsMax();
-                if (maxCurrentSpeedDirection > 1)
-                    speedByCockpitOrientation /= maxCurrentSpeedDirection;
-                else
-                    speedByCockpitOrientation *= Math.Max(maxCurrentSpeedDirection * maxCurrentSpeedDirection, 0.1);
+                var dampenersMoveIndicator = -speedByCockpitOrientation / maxSpeedBy10Ticks_ms;
+                if (dampenersMoveIndicator.AbsMax() > 1)
+                    dampenersMoveIndicator /= dampenersMoveIndicator.AbsMax();
 
-
-                //LogV3(speedByCockpitOrientation, "DampenersOverride : ");
                 direction = Vector3.Transform(new Vector3(
-                   cockpit.MoveIndicator.X == 0 && Math.Abs(speedByCockpitOrientation.X) > 0.0009 ? -speedByCockpitOrientation.X : cockpit.MoveIndicator.X,
-                   cockpit.MoveIndicator.Y == 0 && Math.Abs(speedByCockpitOrientation.Y) > 0.0009 ? -speedByCockpitOrientation.Y : cockpit.MoveIndicator.Y,
-                   cockpit.MoveIndicator.Z == 0 && Math.Abs(speedByCockpitOrientation.Z) > 0.0009 ? -speedByCockpitOrientation.Z : cockpit.MoveIndicator.Z)
+                   cockpit.MoveIndicator.X == 0 && Math.Abs(speedByCockpitOrientation.X) > 0.0009 ? dampenersMoveIndicator.X : cockpit.MoveIndicator.X,
+                   cockpit.MoveIndicator.Y == 0 && Math.Abs(speedByCockpitOrientation.Y) > 0.0009 ? dampenersMoveIndicator.Y : cockpit.MoveIndicator.Y,
+                   cockpit.MoveIndicator.Z == 0 && Math.Abs(speedByCockpitOrientation.Z) > 0.0009 ? dampenersMoveIndicator.Z : cockpit.MoveIndicator.Z)
                    , rotation_B_cockpit2B_ship);
+
             }
             else
                 direction = Vector3.Transform(cockpit.MoveIndicator, rotation_B_cockpit2B_ship);

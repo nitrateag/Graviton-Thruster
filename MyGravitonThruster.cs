@@ -31,7 +31,7 @@ namespace IngameScript
             Vector3D m_position;
 
 
-            float m_thrust_MN; //In Mega Newtown
+            float m_thrust_kN; //In Mega Newtown
             bool m_enabled;
 
             public bool Enabled
@@ -56,14 +56,14 @@ namespace IngameScript
             {
                 get
                 {
-                    return m_thrust_MN;
+                    return m_thrust_kN;
                 }
 
                 set
                 {
-                    m_thrust_MN = value;
-                    Enabled = m_thrust_MN != 0f;
-                    m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust_MN / m_artificialMass_kg*1000;
+                    m_thrust_kN = value;
+                    Enabled = m_thrust_kN != 0f;
+                    m_gravGen.GravityAcceleration = m_orientationThrusterCorrection * m_thrust_kN / m_artificialMass_kg*1000;
                 }
             }
 
@@ -177,7 +177,7 @@ namespace IngameScript
 
             public override string ToString()
             {
-                var eff = Math.Round(m_thrust_MN / m_maximumThrust_kN * 10);
+                var eff = Math.Round(m_thrust_kN / m_maximumThrust_kN * 10);
                 string str = "[";
 
                 for (int i = -10; i <= 10; ++i)
@@ -190,7 +190,7 @@ namespace IngameScript
                         str += "-";
                 }
 
-                return str += "]  " + m_thrust_MN + "/" + m_maximumThrust_kN + " " + m_mass.Count;
+                return str += "]  " + Math.Round(m_thrust_kN / 1000, 3) + "/" + Math.Round(m_maximumThrust_kN /1000, 3) + "MN";
             }
 
             public Vector3D GetPosition() { return m_position; }

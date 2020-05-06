@@ -26,6 +26,22 @@ namespace IngameScript
         {
             
 
+            /* dist_thrust2CenterMass_bySide[side][axe][#thruster]
+             * side = { leftRight = 0, upDown = 1, ForwBack = 2}
+             * Axe = { X = 0, Y = 1, Z = 2}
+             * #Trhuster = [0, ... , n-1], n = number of thruster by side
+             */
+            float[][][] dist_thrust2CenterMass_bySide = new float[3][][];
+            
+            // thrustPowerMax[side][#thruster]
+            float[][] thrustPowerMax = new float[3][];
+
+
+            // OptimalThrustPowerPerThruster_kN[side][#thruster] = new float[3][];
+            public float[][] OptimalThrustPowerPerThruster_kN = new float[3][];
+            // sumOptimalThrustPowerPerSide_kN[side];
+            public float[] sumOptimalThrustPowerPerSide_kN = new float[3];
+
             public void printSimplex(ref StringBuilder str, ref double[] simplex, int nbColumn, int nbLine, int line_sel = -1, int col_sel = -1)
             {
                 for (int line = 0; line < nbLine*nbColumn; line += nbColumn)
@@ -44,19 +60,6 @@ namespace IngameScript
                 str.Append("\n");
 
             }
-
-
-            /* dist_thrust2CenterMass_bySide[side][axe][#thruster]
-             * side = { leftRight = 0, upDown = 1, ForwBack = 2}
-             * Axe = { X = 0, Y = 1, Z = 2}
-             * #Trhuster = [0, ... , n-1], n = number of thruster by side
-             */
-            float[][][] dist_thrust2CenterMass_bySide = new float[3][][];
-            public float[][] Solution = new float[3][];
-
-            // thrustPowerMax[side][#thruster]
-            float[][] thrustPowerMax = new float[3][];
-
             public void setThrusters(List<MyGravitonThruster> thrust_leftRight, List<MyGravitonThruster> thrust_UpDown, List<MyGravitonThruster> thrust_ForwBack,  Vector3D massCenter)
             {
 
@@ -64,9 +67,9 @@ namespace IngameScript
                 dist_thrust2CenterMass_bySide[1] = new float[3][];
                 dist_thrust2CenterMass_bySide[2] = new float[3][];
 
-                Solution[0] = new float[(thrust_leftRight.Count)];
-                Solution[1] = new float[(thrust_UpDown.Count)];
-                Solution[2] = new float[(thrust_ForwBack.Count)];
+                OptimalThrustPowerPerThruster_kN[0] = new float[(thrust_leftRight.Count)];
+                OptimalThrustPowerPerThruster_kN[1] = new float[(thrust_UpDown.Count)];
+                OptimalThrustPowerPerThruster_kN[2] = new float[(thrust_ForwBack.Count)];
                 thrustPowerMax[0] = new float[(thrust_leftRight.Count)];
                 thrustPowerMax[1] = new float[(thrust_UpDown.Count)];
                 thrustPowerMax[2] = new float[(thrust_ForwBack.Count)];
@@ -413,7 +416,10 @@ namespace IngameScript
                     {
                         var idThruster = linkLineToThruster[line];
                         if (idThruster < n)
-                            Solution[axe][idThruster] = (float)(simplex[line * nbColumn + col_res]) - fm[idThruster];
+                        {
+                            OptimalThrustPowerPerThruster_kN[axe][idThruster] = (float)(simplex[line * nbColumn + col_res]) - fm[idThruster];
+                            sumOptimalThrustPowerPerSide_kN[axe] += OptimalThrustPowerPerThruster_kN[axe][idThruster];
+                        }
                     }
 
                     if (useDebug)
@@ -424,7 +430,7 @@ namespace IngameScript
                         strDebug.Append("___ Solution ___\n");
                         for (int i = 0; i < n; ++i)
                         {
-                            strDebug.Append($"{Solution[axe][i]}kN  - {Solution[axe][i] / fm[i]:P}\n");
+                            strDebug.Append($"{OptimalThrustPowerPerThruster_kN[axe][i]}kN  - {OptimalThrustPowerPerThruster_kN[axe][i] / fm[i]:P}\n");
                         }
                     }
 
