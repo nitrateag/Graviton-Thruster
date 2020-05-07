@@ -177,20 +177,29 @@ namespace IngameScript
 
             public override string ToString()
             {
-                var eff = Math.Round(m_thrust_kN / m_maximumThrust_kN * 10);
+                double eff = Math.Round(m_thrust_kN / m_maximumThrust_kN * 10);
                 string str = "[";
+                bool fill = false;
 
                 for (int i = -10; i <= 10; ++i)
                 {
-                    if (i == eff)
+                    if (i == 0)
+                    {
                         str += "|";
-                    else if (i == 0)
-                        str += ":";
+                        fill = !fill && eff != 0;
+                    }
+                    else if (i == eff)
+                    {
+                        str += "\u2588";
+                        fill = !fill && eff != 0;
+                    }
+                    else if(fill)
+                        str += "\u2588";
                     else
                         str += "-";
                 }
 
-                return str += "]  " + Math.Round(m_thrust_kN / 1000, 3) + "/" + Math.Round(m_maximumThrust_kN /1000, 3) + "MN";
+                return str += "]  " + numSi(m_thrust_kN * 1000) + "/" + numSi(m_maximumThrust_kN * 1000) + "N";
             }
 
             public Vector3D GetPosition() { return m_position; }
