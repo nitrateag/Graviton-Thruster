@@ -24,7 +24,7 @@ namespace IngameScript
 
         public class TorqueComposatorCalculator
         {
-            
+            public bool success;
 
             /* dist_thrust2CenterMass_bySide[side][axe][#thruster]
              * side = { leftRight = 0, upDown = 1, ForwBack = 2}
@@ -109,8 +109,9 @@ namespace IngameScript
                 }
             }
 
-            public void ComputeSolution(ref StringBuilder strDebug, bool useDebug)
+            public IEnumerator<bool> ComputeSolution(StringBuilder strDebug, int nbStepsPersTicks, bool useDebug)
             {
+                success = false;
 
                 /* We have to solve a problem for each side of the ship. For the side UpDown (axe = 1), it look like:
                  * 
@@ -155,6 +156,7 @@ namespace IngameScript
                  * http://simplex.tode.cz/en/s7xh4f5qvbt
                  * 
                  */
+                int nbStateComputed = 0;
 
                 for (int axe = 0; axe < 3; ++axe)
                 {
@@ -321,13 +323,16 @@ namespace IngameScript
                     var line_S_current = line_S2;
                     while (countNbPivot < 100)
                     {
-                    /* step 2.1 : find the column :
-                    * 
-                    * we will select the comlumn between [col_0, col-2n-1] who have the higher values at line_S2.
-                    * If all line_S2 is 0 on these column, we will use line_S instead of line_S2, and never use line_S again. 
-                    *  
-                    *                  
-                    */
+                        /* step 2.1 : find the column :
+                        * 
+                        * we will select the comlumn between [col_0, col-2n-1] who have the higher values at line_S2.
+                        * If all line_S2 is 0 on these column, we will use line_S instead of line_S2, and never use line_S again. 
+                        *  
+                        *                  
+                        */
+
+                        if (++nbStateComputed >= nbStepsPersTicks)
+                            yield return true;
 
                     FindTheColumn:
 
@@ -434,7 +439,12 @@ namespace IngameScript
                         }
                     }
 
+                    if (++nbStateComputed >= nbStepsPersTicks)
+                        yield return true;
+
                 } // end for each axes
+
+                success = true;
             }//end function compute
         }
 

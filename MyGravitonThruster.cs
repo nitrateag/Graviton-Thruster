@@ -29,6 +29,8 @@ namespace IngameScript
             public readonly float m_maximumThrust_kN;   //In Mega Newtown
             short m_orientationThrusterCorrection;
             Vector3D m_position;
+            StringBuilder debugStr = new StringBuilder();
+
 
 
             float m_thrust_kN; //In Mega Newtown
@@ -70,7 +72,7 @@ namespace IngameScript
             public MyGravitonThruster(IMyGravityGenerator gravGen, List<SharedMass> allMass)
             {
                 m_gravGen = gravGen;
-                m_enabled = m_gravGen.Enabled;
+                //m_enabled = m_gravGen.Enabled;
 
 
                 //Correction de l'orientation du thruster (pour qu'ils poussent tous dans la même direction
@@ -178,28 +180,30 @@ namespace IngameScript
             public override string ToString()
             {
                 double eff = Math.Round(m_thrust_kN / m_maximumThrust_kN * 10);
-                string str = "[";
+                debugStr.Append("[");
                 bool fill = false;
 
                 for (int i = -10; i <= 10; ++i)
                 {
                     if (i == 0)
                     {
-                        str += "|";
+                        debugStr.Append("|");
                         fill = !fill && eff != 0;
                     }
                     else if (i == eff)
                     {
-                        str += "\u2588";
+                        debugStr.Append("\u25A0");
                         fill = !fill && eff != 0;
                     }
                     else if(fill)
-                        str += "\u2588";
+                        debugStr.Append("\u25A0");
                     else
-                        str += "-";
+                        debugStr.Append("-");
                 }
 
-                return str += "]  " + numSi(m_thrust_kN * 1000) + "/" + numSi(m_maximumThrust_kN * 1000) + "N";
+                string str = debugStr.Append("]  " + numSi(m_thrust_kN * 1000) + "/" + numSi(m_maximumThrust_kN * 1000) + "N").ToString();
+                debugStr.Clear();
+                return str;
             }
 
             public Vector3D GetPosition() { return m_position; }
