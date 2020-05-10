@@ -66,7 +66,6 @@ namespace IngameScript
         //Display every thrusters on cockpit LCD
         const bool USE_DEBUG = true;
         //
-        //
         #endregion
 
         public class StateOfShip
@@ -122,7 +121,6 @@ namespace IngameScript
             public IEnumerator<bool> ComputeNewStateMachine_OverTime(int nbStepsPerTikcs)
             {
                 isReadyToUse = false;
-
 
                 if ( !findCockpit()) 
                     yield break;// it's impossible to continue without cockpits, so we wait to have one
@@ -268,7 +266,6 @@ namespace IngameScript
                 //centerOfMass_Bship = cockpit.CenterOfMass - cockpit.GetPosition();
                 //centerOfMass_Bship = centerOfMass_Bship + (cockpit.Position * 2.5f);
 
-                //voir la diff entre cockpit.GetPosition() et cockpit.Position * 2.5f
                 TorqueComposatorCalculator torqueComposator = new TorqueComposatorCalculator();
                 StringBuilder strDebugCompute = new StringBuilder();
 
@@ -688,8 +685,10 @@ namespace IngameScript
                     NewStateOfShipNeedMoreComputeTime.Dispose();
                     NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
                 }
-                else
-                    NewStateOfShipNeedMoreComputeTime.Reset();
+
+                NewStateOfShipNeedMoreComputeTime.Dispose();
+                NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
+
                 //if (nexStateOfShip.readyToUse)
                 //{
                 //    //lastDirection_Bship = new Vector3();
