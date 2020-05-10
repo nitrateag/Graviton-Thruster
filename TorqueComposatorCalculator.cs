@@ -109,7 +109,7 @@ namespace IngameScript
                 }
             }
 
-            public IEnumerator<bool> ComputeSolution(StringBuilder strDebug, int nbStepsPersTicks, bool useDebug)
+            public IEnumerator<bool> ComputeSolution(int nbStepsPersTicks, StringBuilder strDebug, bool useDebug)
             {
                 success = false;
 
@@ -386,8 +386,6 @@ namespace IngameScript
                             strDebug.AppendLine($"___ simplex {countNbPivot} ___");
                             printSimplex(ref strDebug, ref simplex, nbColumn, nbLine, line_sel, col_sel);
                         }
-
-                        //debug.Echo("gaussian pivot"+ countNbPivot + " in line" + line_sel + " col" + col_sel + "\n");
 
                         double elem_sel = simplex[line_sel + col_sel];
                         var dataColumn_sel = new double[nbLine];

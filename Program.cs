@@ -80,9 +80,6 @@ namespace IngameScript
             public StateOfShip(MyGridProgram gridProg)
             {
                 pgr = gridProg;
-                pgr.Echo("create");
-
-                prgLcd = pgr.Me.GetSurface(0);
 
                 LeftRight_thruster_Bship = new List<MyGravitonThruster>(12);
                 UpDown_thruster_Bship = new List<MyGravitonThruster>(12);
@@ -103,8 +100,6 @@ namespace IngameScript
             //public StringBuilder outDebug = new StringBuilder();
             public IMyTextSurface lcd1 = null;
             public IMyTextSurface lcd2 = null;
-            public IMyTextSurface lcd3 = null;
-            public IMyTextSurface prgLcd = null;
 
             public IMyCockpit cockpit = null;
 
@@ -115,11 +110,18 @@ namespace IngameScript
             public MatrixD Babs_2_Bship; //Matrice to change a vector in base absolute to base of cockpit
 
             public float[][] ThrustFactorComposator_Bship_kN;
+            StringBuilder strLog = new StringBuilder();
+            public override string ToString()
+            {
+                return strLog.ToString();
+            }
+
 
 
             // Manage the computation of the new state of ship
             public IEnumerator<bool> ComputeNewStateMachine_OverTime(int nbStepsPerTikcs)
             {
+                strLog.Clear().Append("::GRAVITY THRUSTER::");
                 isReadyToUse = false;
 
                 if ( !findCockpit()) 
@@ -156,7 +158,7 @@ namespace IngameScript
 
                 if (allCockpit.Count == 0)
                 {
-                    printErrorPgr("No cockit who can control thrusters found");
+                    logError("No cockit who can control thrusters found");
                     return false;
                 }
                 else if (allCockpit.Count == 1)
@@ -167,22 +169,24 @@ namespace IngameScript
                     cockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
                     if (cockpit == null)
                     {
-                        printErrorPgr("If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them");
+                        logError("If your are using multi cockpit, set once of them 'Main Cockpit' or enable 'Control Thrusters' at only once of them");
                         return false;
                     }
                 }
-                lcd1 = cockpit.GetSurface(0);
-                lcd2 = cockpit.GetSurface(1);
-
-                if (lcd1 != null)
+                if (USE_DEBUG)
                 {
-                    setFont(lcd1);
-                }
-                if (lcd2 != null)
-                {
-                    setFont(lcd2);
-                }
+                    lcd1 = cockpit.GetSurface(0);
+                    lcd2 = cockpit.GetSurface(1);
 
+                    if (lcd1 != null)
+                    {
+                        setFont(lcd1);
+                    }
+                    if (lcd2 != null)
+                    {
+                        setFont(lcd2);
+                    }
+                }
 
                 return true;
             }
@@ -209,7 +213,7 @@ namespace IngameScript
 
                 if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
                 {
-                    printErrorPgr($"We didn't found yours thruster component : \n - gravity generator found = {allGravityGen.Count}\n - artificial mass found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{FILTER_GRAVITY_COMPONENTS}\"");
+                    logError($"We didn't found yours thruster component : \n - gravity generator found = {allGravityGen.Count}\n - artificial mass found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{FILTER_GRAVITY_COMPONENTS}\"");
                     return false;
                 }
 
@@ -267,24 +271,32 @@ namespace IngameScript
                 //centerOfMass_Bship = centerOfMass_Bship + (cockpit.Position * 2.5f);
 
                 TorqueComposatorCalculator torqueComposator = new TorqueComposatorCalculator();
-                StringBuilder strDebugCompute = new StringBuilder();
 
 
                 torqueComposator.setThrusters(LeftRight_thruster_Bship, UpDown_thruster_Bship, BackForw_thruster_Bship, centerOfMass_Bship);
                 yield return true;
 
-                IEnumerator<bool> SimplexNeedMoreComputeTime = torqueComposator.ComputeSolution(strDebugCompute, nbStepPerTicks, true);
+                StringBuilder debugSimplex = new StringBuilder();
+                IEnumerator<bool> SimplexNeedMoreComputeTime = torqueComposator.ComputeSolution(nbStepPerTicks, debugSimplex, USE_DEBUG);
 
                 while (SimplexNeedMoreComputeTime.MoveNext())
                     yield return true;
 
                 isReadyToUse = torqueComposator.success;
                 if(!isReadyToUse)
-                { 
-                    printErrorPgr("Cannot compute thruster balance\nSee custom data of program bloc for more info");
+                {
+                    if (USE_DEBUG)
+                    {
+                        logError("Cannot compute thruster balance, see custom data of program bloc for more info");
 
-                    pgr.Echo(strDebugCompute.ToString());
-                    pgr.Me.CustomData = strDebugCompute.ToString();
+                        pgr.Me.CustomData = debugSimplex.ToString();
+                    }
+                    else
+                    {
+                        logError("Cannot compute thruster balance\nSet 'const bool USE_DEBUG = true' \non the top of script and recompile\n to see more info");
+                        pgr.Me.CustomData = strLog.ToString();
+                    }
+
 
                     SimplexNeedMoreComputeTime.Dispose();
 
@@ -311,18 +323,17 @@ namespace IngameScript
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[2]));
 
-                pgr.Me.CustomData = strDebugCompute.ToString();
+                logPerformances();
 
 
                 SimplexNeedMoreComputeTime.Dispose();
             }
 
-            public void printPgrPerformances()
+            void logPerformances()
             {
-                prgLcd.WriteText($"::GRAVITY THRUSTER:: Reset every {nbStepUsedToCompute/6}sec");
-                printMsgPgr("Gravity Thruster is operational");
-                LogV3Prg(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration :", "m/s²");
-                LogV3Prg(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000), "Maximum Thrust :", "N");
+                strLog.Append($" Reset every {nbStepUsedToCompute/6}sec\n");
+                LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration :", "m/s²");
+                LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000), "Maximum Thrust :", "N");
 
                 Vector3 theoricMaximumThrust_Bship = new Vector3(LeftRight_thruster_Bship.Sum(gravThrust => gravThrust.m_maximumThrust_kN),
                                                                  UpDown_thruster_Bship.Sum(gravThrust => gravThrust.m_maximumThrust_kN),
@@ -333,7 +344,7 @@ namespace IngameScript
                     theoricMaximumThrust_Bship.Y == 0 ? 0 : 100 * maximumThrustPerSide_Bship_kN_noZero.Y / theoricMaximumThrust_Bship.Y,
                     theoricMaximumThrust_Bship.Z == 0 ? 0 : 100 * maximumThrustPerSide_Bship_kN_noZero.Z / theoricMaximumThrust_Bship.Z);
 
-                LogV3Prg(Vector3.Abs(Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
+                LogV3(Vector3.Abs(Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
             }
 
             public void SetPower(Vector3 Direction_Bship)
@@ -385,22 +396,23 @@ namespace IngameScript
                 return Vector3.Transform(v_Bship, rotation_Bship_2_Bcockpit);
             }
 
-            public void printErrorPgr(string errorMsg)
+            public void logError(string errorMsg)
             {
-                printMsgPgr("ERROR: " + errorMsg);
+                var partSize = 36;
+                var parts = Enumerable.Range(0, (errorMsg.Length + partSize - 1) / partSize)
+                    .Select(i => errorMsg.Substring(i * partSize, Math.Min(errorMsg.Length - i * partSize, partSize)));
+
+                strLog.Append("\nERROR: ");
+                foreach (string str in parts)
+                    strLog.Append(str).AppendLine() ;
             }
-            public void printMsgPgr(string Msg)
+            public void LogV3(Vector3D v, string title, string units)
             {
-                pgr.Echo(Msg);
-                prgLcd.WriteText(prgLcd.GetText() + "\n" + Msg);
-            }
-            public void LogV3Prg(Vector3D v, string title, string units)
-            {
-                printMsgPgr(title);
-                StringBuilder str = new StringBuilder();
-                str.Append("X:" + (v.X > 0 ? " " : "") + numSi(v.X) + units);
-                str.Append(" Y:" + (v.Y > 0 ? " " : "") + numSi(v.Y) + units);
-                printMsgPgr(str.Append(" Z:" + (v.Z > 0 ? " " : "") + numSi(v.Z) + units).ToString());
+                strLog.Append(title).AppendLine();
+
+                strLog.Append("X:" + (v.X > 0 ? " " : "") + numSi(v.X) + units);
+                strLog.Append(" Y:" + (v.Y > 0 ? " " : "") + numSi(v.Y) + units);
+                strLog.Append(" Z:" + (v.Z > 0 ? " " : "") + numSi(v.Z) + units).AppendLine();
             }
         }
 
@@ -416,6 +428,9 @@ namespace IngameScript
 
         public void PrintLog(IMyTextSurface lcd1, IMyTextSurface lcd2 = null)
         {
+            if (!USE_DEBUG)
+                return;
+
             if (lcd1 == null)
             {
                 Echo("LCD not found");
@@ -521,8 +536,6 @@ namespace IngameScript
 
             //PrintLog();
             Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update10;
-            Echo("End");
-
 
         }
 
@@ -617,6 +630,22 @@ namespace IngameScript
         }
 
 
+        int waiting = 0;
+        string setUserWaiting()
+        {
+            waiting %= 3;
+            switch(++waiting)
+            {
+                case 1:
+                    return " .";
+                case 2:
+                    return " .."; 
+                default:
+                    return " ...";
+            }
+
+        }
+
         public void Main(string argument, UpdateType updateSource)
         {
             // The main entry point of the script, invoked every time
@@ -653,24 +682,12 @@ namespace IngameScript
             }
             else
             {
-                switch(currentTik % 3)
-                {
-                    case 0:
-                        Me.GetSurface(1).WriteText("First computing .");
-                        break;
-                    case 1:
-                        Me.GetSurface(1).WriteText("First computing ..");
-                        break;
-                    case 2:
-                        Me.GetSurface(1).WriteText("First computing ...");
-                        break;
-                }
+                Me.GetSurface(1).WriteText("First computing" + setUserWaiting());
             }
 
 
             if (!NewStateOfShipNeedMoreComputeTime.MoveNext())
             {
-                Echo("end State Machine");
                 //Compute finished !
 
                 if (stateOfShip[idNextStateOfShip].isReadyToUse)
@@ -680,25 +697,21 @@ namespace IngameScript
                     idCurrentStateOfShip = idNextStateOfShip;
                     idNextStateOfShip = (idCurrentStateOfShip + 1) % 2;
                     stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute = currentTik;
-                    stateOfShip[idCurrentStateOfShip].printPgrPerformances();
+
+                    Me.GetSurface(0).WriteText(stateOfShip[idCurrentStateOfShip].ToString());
 
                     NewStateOfShipNeedMoreComputeTime.Dispose();
                     NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
                 }
+                else
+                {
+                    Me.GetSurface(0).WriteText(stateOfShip[idNextStateOfShip].ToString());
+                    Me.GetSurface(1).WriteText(Me.GetSurface(1).GetText() + setUserWaiting());
+                    Echo(Me.GetSurface(0).GetText());
+                };
 
                 NewStateOfShipNeedMoreComputeTime.Dispose();
                 NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
-
-                //if (nexStateOfShip.readyToUse)
-                //{
-                //    //lastDirection_Bship = new Vector3();
-                //    nexStateOfShip.nbStepUsedToCompute = currentTik;
-                //    currentStateOfShip = nexStateOfShip;
-                //    currentStateOfShip.printPgrPerformances();
-                //    nexStateOfShip = new StateOfShip(this);
-
-                //}
-                //_stateMachine = nexStateOfShip.ComputeNewStateMachine_OverTime(nbSimplexStepPerTicks);
 
                 currentTik = 0;
             }
