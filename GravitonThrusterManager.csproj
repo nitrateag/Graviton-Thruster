@@ -102,6 +102,7 @@
     <Analyzer Include="c:\users\nitrateag\appdata\local\microsoft\visualstudio\15.0_a712702e\extensions\ahqrg3d1.ake\Analyzers\MDKAnalyzer.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AdvanceCockpit.cs" />
     <Compile Include="SharedMass.cs" />
     <Compile Include="MyGravitonThruster.cs" />
     <Compile Include="MDK\Bootstrapper.cs" />
@@ -112,6 +113,7 @@
     <Compile Include="Readme.cs" />
     <AdditionalFiles Include="thumb.png" />
     <AdditionalFiles Include="MDK\whitelist.cache" />
+    <Compile Include="StateOfShip.cs" />
     <Compile Include="TorqueComposatorCalculator.cs" />
   </ItemGroup>
   <ItemGroup>
