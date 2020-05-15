@@ -20,6 +20,10 @@ namespace IngameScript
 {
     partial class Program
     {
+        /*
+         *  Contain all data needed to move the ship 
+         * 
+         */
         public class StateOfShip
         {
             public bool isReadyToUse = false;
@@ -143,19 +147,19 @@ namespace IngameScript
 
                 if (allThruster != null)
                 {
-                    allThruster.GetBlocksOfType(allGravityGen);
-                    allThruster.GetBlocksOfType(allGravityMass);
+                    allThruster.GetBlocksOfType(allGravityGen, gravGen => gravGen.IsFunctional);
+                    allThruster.GetBlocksOfType(allGravityMass, mass => mass.IsFunctional);
                 }
 
                 if (allGravityGen.Count == 0)
-                    pgr.GridTerminalSystem.GetBlocksOfType(allGravityGen);
+                    pgr.GridTerminalSystem.GetBlocksOfType(allGravityGen, gravGen => gravGen.IsFunctional);
 
                 if (allGravityMass.Count == 0)
-                    pgr.GridTerminalSystem.GetBlocksOfType(allGravityMass);
+                    pgr.GridTerminalSystem.GetBlocksOfType(allGravityMass, mass => mass.IsFunctional);
 
                 if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
                 {
-                    LogError($"We didn't found yours thruster component : \n - gravity generator found = {allGravityGen.Count}\n - artificial mass found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{FILTER_GRAVITY_COMPONENTS}\"");
+                    LogError($"We didn't found yours thruster component :\n - functional gravity generators found = {allGravityGen.Count}\n - functional artificial masses found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{FILTER_GRAVITY_COMPONENTS}\"");
                     return false;
                 }
 
@@ -269,7 +273,7 @@ namespace IngameScript
             }
             public void LogMsg(string msg)
             {
-                var partSize = 40;
+                var partSize = 60;
                 var parts = Enumerable.Range(0, (msg.Length + partSize - 1) / partSize)
                     .Select(i => msg.Substring(i * partSize, Math.Min(msg.Length - i * partSize, partSize)));
 
