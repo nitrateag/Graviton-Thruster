@@ -318,10 +318,11 @@ namespace IngameScript
                     var linkLineToThruster = new int[nbLine-2];
                     for (int i = 0; i < n; linkLineToThruster[i++] = n) ;
 
+                    yield return true;
 
                     double zero_epsilon = 0;// .000001;
                     var line_S_current = line_S2;
-                    while (countNbPivot < 100)
+                    while (true)
                     {
                         /* step 2.1 : find the column :
                         * 
