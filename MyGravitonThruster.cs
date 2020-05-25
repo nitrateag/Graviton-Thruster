@@ -201,7 +201,7 @@ namespace IngameScript
                         debugStr.Append("-");
                 }
 
-                string str = debugStr.Append("]  " + numSi(m_thrust_kN * 1000) + "/" + numSi(m_maximumThrust_kN * 1000) + "N").ToString();
+                string str = debugStr.Append($"] {m_gravGen.CustomName.Substring(8)} {numSi(m_thrust_kN * 1000)}/{numSi(m_maximumThrust_kN * 1000)}N").ToString();
                 debugStr.Clear();
                 return str;
             }

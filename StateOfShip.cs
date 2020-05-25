@@ -54,7 +54,7 @@ namespace IngameScript
             public List<MyGravitonThruster> UpDown_thruster_Bship;
 
 
-            public List<AdvanceCockpit> advCockpit = null;
+            public List<AdvanceCockpit> m_arrCockpit = null;
 
             public Vector3D centerOfMass_Bship;
 
@@ -93,6 +93,14 @@ namespace IngameScript
                 {
                     yield return false;
                 }
+
+                if (USE_OPTYM_TOOLS)
+                {
+                    yield return false;
+                    LaunchOptimTools();
+                }
+
+
                 SimplexNeedMoreComputationTime.Dispose();
 
             }
@@ -114,7 +122,7 @@ namespace IngameScript
                 List<IMyCockpit> allCockpit = new List<IMyCockpit>();
 
                 pgr.GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
-                advCockpit = new List<AdvanceCockpit>();
+                m_arrCockpit = new List<AdvanceCockpit>();
 
                 if (allCockpit.Count == 0)
                 {
@@ -127,11 +135,11 @@ namespace IngameScript
                     IMyCockpit mainCockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
                     if (mainCockpit == null)
                     {   //If there is no "Main Cockpit", we take alls of them
-                        allCockpit.ForEach(cockpit => advCockpit.Add(new AdvanceCockpit(cockpit)));
+                        allCockpit.ForEach(cockpit => m_arrCockpit.Add(new AdvanceCockpit(cockpit)));
                     }
                     else
                     {  //Else we take only the main cockpit
-                        advCockpit.Add(new AdvanceCockpit(mainCockpit));
+                        m_arrCockpit.Add(new AdvanceCockpit(mainCockpit));
                     }
                 }
                 return true;
@@ -200,7 +208,7 @@ namespace IngameScript
             IEnumerator<bool> LaunchSimplexComputation(int nbStepPerTicks)
             {
                 //Recording of distances :
-                centerOfMass_Bship = advCockpit[0].m_cockpit.CenterOfMass - pgr.Me.CubeGrid.GetPosition(); //ship's center of mass in the base of ship but oriented in Absolute/World base
+                centerOfMass_Bship = m_arrCockpit[0].m_cockpit.CenterOfMass - pgr.Me.CubeGrid.GetPosition(); //ship's center of mass in the base of ship but oriented in Absolute/World base
                 Vector3D.Rotate(ref centerOfMass_Bship, ref Babs_2_Bship, out centerOfMass_Bship);
 
 
@@ -238,7 +246,7 @@ namespace IngameScript
                 }
 
 
-                shipMass = advCockpit[0].m_cockpit.CalculateShipMass().TotalMass;
+                shipMass = m_arrCockpit[0].m_cockpit.CalculateShipMass().TotalMass;
 
 
                 ThrustFactorComposator_Bship_kN = torqueComposator.OptimalThrustPowerPerThruster_kN;
@@ -253,7 +261,7 @@ namespace IngameScript
                 maxSpeedBy10Ticks_Bship_ms_noZero = (maximumThrustPerSide_Bship_kN_noZero * 1000) / (shipMass * 6); // *6 because ther is 60 ticks pers second, so each 10Ticks is 1/6 seconds
 
                 //Send thrust characteristics to user
-                maximumThrustPerSide_Bcock_kN = advCockpit[0].Bship_2_Bcock(new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
+                maximumThrustPerSide_Bcock_kN = m_arrCockpit[0].Bship_2_Bcock(new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[2]));
 
@@ -264,6 +272,70 @@ namespace IngameScript
             }
             #endregion
 
+            public void LaunchOptimTools()
+            {
+                if (!USE_OPTYM_TOOLS)
+                    return;
+
+                if (RENAME_GRAVITY_GENERATOR)
+                {
+                    //LeftRight
+                    var LR = m_arrCockpit[0].Bship_2_Bcock(new Vector3(1, 0, 0));
+                    var UD = m_arrCockpit[0].Bship_2_Bcock(new Vector3(0, 1, 0));
+                    var FB = m_arrCockpit[0].Bship_2_Bcock(new Vector3(0, 0, 1));
+
+                    int i = 0;
+                    if (LR.X != 0)
+                        LeftRight_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen LR{i++}");
+                    else if(LR.Y != 0)
+                        LeftRight_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen UD{i++}");
+                    else
+                        LeftRight_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen FB{i++}");
+
+                    i = 0;
+                    if (UD.X != 0)
+                        UpDown_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen LR{i++}");
+                    else if (UD.Y != 0)
+                        UpDown_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen UD{i++}");
+                    else
+                        UpDown_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen FB{i++}");
+
+                    i = 0;
+                    if (FB.X != 0)
+                        BackForw_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen LR{i++}");
+                    else if (FB.Y != 0)
+                        BackForw_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen UD{i++}");
+                    else
+                        BackForw_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen FB{i++}");
+                }
+
+                if(FIT_GRAVITY_FEILD)
+                {
+                    LeftRight_thruster_Bship.ForEach(gravThr => {
+                        Vector3I newFeild = new Vector3I(
+                            (int)(gravThr.m_gravGen.FieldSize.X / 2.5),
+                            (int)(gravThr.m_gravGen.FieldSize.Y / 2.5),
+                            (int)(gravThr.m_gravGen.FieldSize.Z / 2.5));
+                        gravThr.m_gravGen.FieldSize = newFeild * 2.5;
+                        });
+
+                    UpDown_thruster_Bship.ForEach(gravThr => {
+                        Vector3I newFeild = new Vector3I(
+                            (int)(gravThr.m_gravGen.FieldSize.X / 2.5),
+                            (int)(gravThr.m_gravGen.FieldSize.Y / 2.5),
+                            (int)(gravThr.m_gravGen.FieldSize.Z / 2.5));
+                        gravThr.m_gravGen.FieldSize = newFeild * 2.5;
+                    });
+
+                    BackForw_thruster_Bship.ForEach(gravThr => {
+                        Vector3I newFeild = new Vector3I(
+                            (int)(gravThr.m_gravGen.FieldSize.X / 2.5),
+                            (int)(gravThr.m_gravGen.FieldSize.Y / 2.5),
+                            (int)(gravThr.m_gravGen.FieldSize.Z / 2.5));
+                        gravThr.m_gravGen.FieldSize = newFeild * 2.5;
+                    });
+                }
+            }
 
             #region logTools
 
@@ -294,8 +366,8 @@ namespace IngameScript
             void logPerformances()
             {
                 strLog.Append($" Reset every {nbStepUsedToCompute / 6}sec\n");
-                if(advCockpit.Count > 1)
-                    LogMsg("(X,Y,Z) seen from cockpit '" + advCockpit[0].m_cockpit.CustomName + "'\n");
+                if(m_arrCockpit.Count > 1)
+                    LogMsg("(X,Y,Z) seen from cockpit '" + m_arrCockpit[0].m_cockpit.CustomName + "'\n");
 
                 LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration :", "m/s²");
                 LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000), "Maximum Thrust :", "N");
@@ -309,7 +381,7 @@ namespace IngameScript
                     theoricMaximumThrust_Bship.Y == 0 ? 0 : 100 * maximumThrustPerSide_Bship_kN_noZero.Y / theoricMaximumThrust_Bship.Y,
                     theoricMaximumThrust_Bship.Z == 0 ? 0 : 100 * maximumThrustPerSide_Bship_kN_noZero.Z / theoricMaximumThrust_Bship.Z);
 
-                LogV3(Vector3.Abs(advCockpit[0].Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
+                LogV3(Vector3.Abs(m_arrCockpit[0].Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
             }
             public override string ToString()
             {
@@ -368,7 +440,7 @@ namespace IngameScript
                 foreach (MyGravitonThruster ggD in BackForw_thruster_Bship)
                     str3Debug_Bship[2].Append(ggD.ToString() + "\n");
 
-                advCockpit.ForEach(advCock => advCock.DebugThrusters(str3Debug_Bship));
+                m_arrCockpit.ForEach(advCock => advCock.DebugThrusters(str3Debug_Bship));
 
 
                 return;
@@ -379,7 +451,7 @@ namespace IngameScript
                 if (!USE_DEBUG)
                     return;
 
-                advCockpit.ForEach(advCock => advCock.PrintDebug(strDebug, strLog));
+                m_arrCockpit.ForEach(advCock => advCock.PrintDebug(strDebug, strLog));
                 strDebug.Clear();
             }
             #endregion

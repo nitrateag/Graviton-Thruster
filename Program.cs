@@ -63,6 +63,16 @@ namespace IngameScript
         //Too higher number can block the script if you are using a LOT OF gravity generator
         const int NB_SIMPLEX_STEPS_PER_TICKS = 20;
 
+        //enable optimisation tools
+        const bool USE_OPTYM_TOOLS = false;
+
+        //rename gravity generator to easily find it (need USE_OPTYM_TOOLS = true;)
+        //(LR = LeftRigh, UD = UpDown, FB = ForwardBackward)
+        const bool RENAME_GRAVITY_GENERATOR = false;
+
+        //Fit the sithe of gravity generator feild to perfect match a multiple of 2.5m
+        const bool FIT_GRAVITY_FEILD = false;
+
         //Display every thrusters on cockpit LCD
         const bool USE_DEBUG = true;
         //
@@ -183,22 +193,22 @@ namespace IngameScript
 
         public void moveShip(ref StateOfShip ship)
         {
-            Vector3D speed_Bship = ship.advCockpit[0].m_cockpit.GetShipVelocities().LinearVelocity;
+            Vector3D speed_Bship = ship.m_arrCockpit[0].m_cockpit.GetShipVelocities().LinearVelocity;
             Vector3D.Rotate(ref speed_Bship, ref Babs_2_Bship, out speed_Bship);
 
 
             if(USE_DEBUG)
-                ship.advCockpit.ForEach(advCock => advCock.DebugSpeed(ref speed_Bship));
+                ship.m_arrCockpit.ForEach(advCock => advCock.DebugSpeed(ref speed_Bship));
 
 
             Vector3 allCockpitInput_Bship = new Vector3(0, 0, 0);
-            ship.advCockpit.ForEach(advCock => allCockpitInput_Bship += advCock.getMoveIndicator_Bship());
+            ship.m_arrCockpit.ForEach(advCock => allCockpitInput_Bship += advCock.getMoveIndicator_Bship());
 
             if(allCockpitInput_Bship.AbsMax() > 1)
                 allCockpitInput_Bship /= allCockpitInput_Bship.AbsMax();
 
             Vector3 direction_Bship;
-            if (ship.advCockpit[0].m_cockpit.DampenersOverride)
+            if (ship.m_arrCockpit[0].m_cockpit.DampenersOverride)
             {
                 var dampenersMoveIndicator = -speed_Bship / ship.maxSpeedBy10Ticks_Bship_ms_noZero;
                 if (dampenersMoveIndicator.AbsMax() > 1)
@@ -249,6 +259,7 @@ namespace IngameScript
                     stateOfShip[idCurrentStateOfShip].DebugThrusters();
                     stateOfShip[idCurrentStateOfShip].PrintDebug();
                 }
+
 
                 double progess = Math.Round(currentTik * 10d / stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute);
                 StringBuilder str = new StringBuilder("[");
