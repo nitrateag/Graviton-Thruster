@@ -55,40 +55,62 @@ namespace IngameScript
 
         #region mdk preserve
 
-        //Name of group to filter thruster's components, if needed
-        const string FILTER_GRAVITY_COMPONENTS = "Gravity Thruster";
+        ////////////////////////  Thruster architecture  ///////////////////////////////////////////
 
-        //Number of steps to compute every 10 ticks for the Simplex algorithms
+        const bool AUTO_FIT_GRAVITY_FEILD = true;
+        // Let us find the shape of your gravity thruster. it will seek for all mass which
+        // is close to each gravity generator. This operation can take a long time, but need to
+        // be launch ONLY ONCE TIME PER SHIP. Don't hesitate to desactivate it if you want a quicker 
+        // startup of the script
+
+
+        const float FILLING_OF_GRAVITY_FEILD = 70;  // FILLING_OF_GRAVITY_FEILD = [1 .. 100], in %
+        // Define the percent of artificial mass must be present in the gravity feild
+        // Gravity generator is not include in this calculation
+        // High value tend the feild to not overextend outside artificial mass, safer for passenger
+        // But Hight value can miss some artifficial mass if the gravity generator isn't in the 
+        // middle of all artificial mass
+
+
+        ////////////////////////  Thrusters components  ///////////////////////////////////////////
+        
+        const string GROUP_NAME_OF_THRUSTER_COMPONENT = "Graviton Thruster";
+        // If you don't want the script use all your gravity generators and/or all your artificial mass,
+        // group the components for the script under the "Graviton Thruster" name.
+        // You can also use a name of your choice, but write it in GROUP_NAME_OF_THRUSTER_COMPONENT variable 
+
+
+        const bool RENAME_GRAVITY_GENERATOR = true;
+        // Let the script rename all gravity generator that it use to easily find it.
+        // (LR = Left-Righ, UD = Up-Down, FB = Forward-Backward)
+        // Usefull when you prefer to design the gravity feild by yourself
+
+
+        ////////////////////////  Time optimisation  ///////////////////////////////////////////
+
+        const int NB_SIMPLEX_STEPS_PER_TICKS = 20;
+        //Number of steps to compute every 10 ticks for the Simplex algorithm
         //High number increase rate of script updating, but can decrease game performances. 
         //Too higher number can block the script if you are using a LOT OF gravity generator
-        const int NB_SIMPLEX_STEPS_PER_TICKS = 20;
 
-        //enable optimisation tools
-        const bool USE_OPTYM_TOOLS = false;
 
-        //rename gravity generator to easily find it (need USE_OPTYM_TOOLS = true;)
-        //(LR = LeftRigh, UD = UpDown, FB = ForwardBackward)
-        const bool RENAME_GRAVITY_GENERATOR = false;
-
-        //Fit the size of gravity generator feild to perfect match artificial mass boundary
-        const bool FIT_GRAVITY_FEILD = false;
-
+        ////////////////////////  Developper option  ///////////////////////////////////////////
+        //
         //Display every thrusters on cockpit LCD
         const bool USE_DEBUG = true;
         //
         //
         //
-        const bool endOfParam = true;
         #endregion
 
 
-
+        static bool firstCompute;
 
         StateOfShip[] stateOfShip;
         int idCurrentStateOfShip;
         int idNextStateOfShip;
 
-        IEnumerator<bool> NewStateOfShipNeedMoreComputeTime;
+        IEnumerator<string> NewStateOfShipNeedMoreComputeTime;
         public Vector3 lastDirection_Bship = new Vector3(0, 0, 0);
 
 
@@ -122,6 +144,8 @@ namespace IngameScript
             idNextStateOfShip = 1;
 
             //nexStateOfShip = new StateOfShip(this);
+
+            firstCompute = true;
 
             NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
 
@@ -177,11 +201,11 @@ namespace IngameScript
             switch (++waiting)
             {
                 case 1:
-                    return " .";
+                    return " .\n";
                 case 2:
-                    return " ..";
+                    return " ..\n";
                 default:
-                    return " ...";
+                    return " ...\n";
             }
 
         }
@@ -249,6 +273,8 @@ namespace IngameScript
             ++currentTik;
             Babs_2_Bship = MatrixD.Transpose(Me.CubeGrid.WorldMatrix); //Need to be actualized every time because it follow the ship orientation in world base
 
+            StringBuilder strKeyboard = new StringBuilder();
+
             if (stateOfShip[idCurrentStateOfShip].isReadyToUse)
             {
                 moveShip(ref stateOfShip[idCurrentStateOfShip]);
@@ -262,24 +288,25 @@ namespace IngameScript
 
 
                 double progess = Math.Round(currentTik * 10d / stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute);
-                StringBuilder str = new StringBuilder("[");
 
+                strKeyboard.Append("[");
                 for (int i = 0; i <= 10; ++i)
                 {
                     if (i < progess)
-                        str.Append("\u25A0");
+                        strKeyboard.Append("\u25A0");
                     else
-                        str.Append("-");
+                        strKeyboard.Append("-");
                 }
 
-                Me.GetSurface(1).WriteText(str.Append($"] {(stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute - currentTik) / 6}sec\n").ToString());
+                strKeyboard.Append($"] {(stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute - currentTik) / 6}sec\n");
             }
             else
             {
-                Me.GetSurface(1).WriteText("First computing" + setUserWaiting());
+                strKeyboard.Append("First computing" + setUserWaiting());
             }
 
-
+            
+            
             if (!NewStateOfShipNeedMoreComputeTime.MoveNext())
             {
                 //Compute finished !
@@ -309,7 +336,12 @@ namespace IngameScript
 
                 currentTik = 0;
             }
+            else
+            {
+                strKeyboard.Append(NewStateOfShipNeedMoreComputeTime.Current);
+            }
 
+            Me.GetSurface(1).WriteText(strKeyboard.ToString());
 
         }
 

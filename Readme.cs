@@ -1,8 +1,8 @@
 ﻿/*
- *   R e a d m e
- *   -----------
- * 
- *   In this file you can include any instructions or other comments you want to have injected onto the 
- *   top of your final script. You can safely delete this file if you do not want any such comments.
- * 
+ *  Developped with Malware's Development Kit for Space Engineers (MDK-SE)
+ *  https://github.com/malware-dev/MDK-SE
+ *  
+ *  Any bug ? suggestion ? Want to contribute ?
+ *  https://github.com/nitrateag/Graviton-Thruster
+ *  
  */

@@ -156,6 +156,7 @@ namespace IngameScript
                  * http://simplex.tode.cz/en/s7xh4f5qvbt
                  * 
                  */
+
                 int nbStateComputed = 0;
 
                 for (int axe = 0; axe < 3; ++axe)

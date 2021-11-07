@@ -24,6 +24,8 @@ namespace IngameScript
          *  Contain all data needed to move the ship 
          * 
          */
+
+        private enum KeepReducing { accept, reject, needToSeeFurther }
         public class StateOfShip
         {
             public bool isReadyToUse = false;
@@ -69,7 +71,7 @@ namespace IngameScript
 
 
             // Manage the computation of the new state of ship
-            public IEnumerator<bool> ComputeNewStateMachine_OverTime(int nbStepsPerTikcs)
+            public IEnumerator<string> ComputeNewStateMachine_OverTime(int nbStepsPerTikcs)
             {
                 strLog.Clear().Append("::GRAVITY THRUSTER::");
                 isReadyToUse = false;
@@ -81,75 +83,37 @@ namespace IngameScript
                 UpDown_thruster_Bship.Clear();
                 BackForw_thruster_Bship.Clear();
 
-                if (findAllGravityThruster())
-                    yield return true; //Do a pause
-                else
-                    yield break;// If we fail to found thrusters, we retry from beginings
+
+                //  findAllGravityThruster
+
+                IEnumerable<string> findAllGravitonThruster = FindAllGravitonThruster();
+
+                foreach (string computInfo in findAllGravitonThruster)
+                {
+                    yield return computInfo;
+                }
+
+
+
+                // find best power balance
 
                 IEnumerator<bool> SimplexNeedMoreComputationTime = LaunchSimplexComputation(nbStepsPerTikcs);
 
-
                 while (SimplexNeedMoreComputationTime.MoveNext())
-                {
-                    yield return false;
-                }
-
-                if (USE_OPTYM_TOOLS)
-                {
-                    yield return false;
-                    LaunchOptimTools();
-                }
+                    yield return ""; // ("Compute best power balance\n(torque compensator)"); //Do a pause
+                
 
 
                 SimplexNeedMoreComputationTime.Dispose();
 
             }
 
-            public void SetPower(Vector3 Direction_Bship)
+            public IEnumerable<string> FindAllGravitonThruster()
             {
-                for (int i = 0; i < LeftRight_thruster_Bship.Count; ++i)
-                    LeftRight_thruster_Bship[i].Thrust = ThrustFactorComposator_Bship_kN[0][i] * Direction_Bship.X;
-                for (int i = 0; i < UpDown_thruster_Bship.Count; ++i)
-                    UpDown_thruster_Bship[i].Thrust = ThrustFactorComposator_Bship_kN[1][i] * Direction_Bship.Y;
-                for (int i = 0; i < BackForw_thruster_Bship.Count; ++i)
-                    BackForw_thruster_Bship[i].Thrust = ThrustFactorComposator_Bship_kN[2][i] * Direction_Bship.Z;
-            }
+                //Update all gravity thruters and compute news optimal coefficients
 
-            #region computeShipState
-            //find the good cockpit
-            bool findCockpit()
-            {
-                List<IMyCockpit> allCockpit = new List<IMyCockpit>();
-
-                pgr.GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
-                m_arrCockpit = new List<AdvanceCockpit>();
-
-                if (allCockpit.Count == 0)
-                {
-                    LogError("No cockit who can control thrusters found");
-                    return false;
-                }
-                else
-                { //If there is at least 2 cockpits
-
-                    IMyCockpit mainCockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
-                    if (mainCockpit == null)
-                    {   //If there is no "Main Cockpit", we take alls of them
-                        allCockpit.ForEach(cockpit => m_arrCockpit.Add(new AdvanceCockpit(cockpit)));
-                    }
-                    else
-                    {  //Else we take only the main cockpit
-                        m_arrCockpit.Add(new AdvanceCockpit(mainCockpit));
-                    }
-                }
-                return true;
-            }
-
-            //Update all gravity thruters and compute news optimal coefficients
-            bool findAllGravityThruster()
-            {
                 //Search all thruster component
-                IMyBlockGroup allThruster = pgr.GridTerminalSystem.GetBlockGroupWithName(FILTER_GRAVITY_COMPONENTS);
+                IMyBlockGroup allThruster = pgr.GridTerminalSystem.GetBlockGroupWithName(GROUP_NAME_OF_THRUSTER_COMPONENT);
                 List<IMyVirtualMass> allGravityMass = new List<IMyVirtualMass>(200);
                 List<IMyGravityGenerator> allGravityGen = new List<IMyGravityGenerator>(50);
 
@@ -167,12 +131,269 @@ namespace IngameScript
 
                 if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
                 {
-                    LogError($"We didn't found yours thruster component :\n - functional gravity generators found = {allGravityGen.Count}\n - functional artificial masses found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{FILTER_GRAVITY_COMPONENTS}\"");
-                    return false;
+                    LogError($"We didn't found yours thruster component :\n - functional gravity generators found = {allGravityGen.Count}\n - functional artificial masses found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{GROUP_NAME_OF_THRUSTER_COMPONENT}\"");
+                    yield break;
                 }
+
+
+                // Fit gravity feild on thruster shape
+                if (firstCompute && AUTO_FIT_GRAVITY_FEILD)
+                {
+                    // pgr.Me.CustomData = "";
+                    float fillingLimit = FILLING_OF_GRAVITY_FEILD < 1f ? 1f : (FILLING_OF_GRAVITY_FEILD > 100f ? 100f : FILLING_OF_GRAVITY_FEILD);
+                    int nbGravityGen = allGravityGen.Count, currentGG = 0;
+
+                    List<IMyVirtualMass> massBag = new List<IMyVirtualMass>(allGravityMass);
+                    List<IMyGravityGenerator> ggBag = new List<IMyGravityGenerator>(allGravityGen);
+
+                    List<int> arrDistToMass_axe = new List<int>(massBag.Count);
+                    List<int> arrDistToGG_axe = new List<int>(ggBag.Count);
+
+                    foreach (IMyGravityGenerator gg in allGravityGen)
+                    {
+
+                        ++currentGG;
+                        // pgr.Me.CustomData += "\n-----------currentGG :  " + currentGG;
+
+                        Vector3I currentGravityFeildPave = new Vector3I(1, 1, 1);
+                        Vector3I currentGravityFeild = new Vector3I(1, 1, 1);
+                        Vector3I oneStep = new Vector3I(1, 1, 1);
+
+                        var Xgg = gg.Position.X;
+                        var Ygg = gg.Position.Y;
+                        var Zgg = gg.Position.Z;
+
+                        int nbMass = 0;
+                        int nbGg = 0;
+
+                        // We will increase each gravity feild direction one by one, and keep incresing 
+                        // if the new gravity feild is still enought filled. (see FILLING_OF_GRAVITY_FEILD variable)
+                        // We stop the search when no one direction can be increased
+                        byte nbAxesToTest = 3;
+                        int _axe = 2;
+
+                        int nbTry = 0;
+
+                        //While there is some axes of gravity feild to increase
+                        while (nbAxesToTest-- > 0)
+                        {
+                            _axe = (++_axe) % 3;
+
+                            // pgr.Me.CustomData += "\n-----------------------------------------\n\n nbAxesToTest : " + (nbAxesToTest+1);
+                            // pgr.Me.CustomData += "\n _axe : " + _axe;
+
+                            int _horz1 = (_axe + 1) % 3, _horz2 = (_axe + 2) % 3;
+                            int gravityFeild_horz1 = currentGravityFeild[_horz1], gravityFeild_horz2 = currentGravityFeild[_horz2];
+                            int gravityFeildPave_horz1 = currentGravityFeildPave[_horz1], gravityFeildPave_horz2 = currentGravityFeildPave[_horz2];
+                            int nextGravityFeild_axe = currentGravityFeild[_axe];
+                            int ggPos1 = gg.Position[_horz1], ggPos2 = gg.Position[_horz2], ggPosAxe = gg.Position[_axe];
+
+
+                            arrDistToMass_axe.Clear();
+                            foreach (var mass in massBag)
+                            {
+                                if (Math.Abs(ggPos1 - mass.Position[_horz1]) < gravityFeild_horz1 &&
+                                    Math.Abs(ggPos2 - mass.Position[_horz2]) < gravityFeild_horz2)
+                                {
+                                    arrDistToMass_axe.Add(Math.Abs(mass.Position[_axe] - ggPosAxe)+1);
+                                }
+                            }
+                            // pgr.Me.CustomData += "\n arrAxeDistMass.Count : " + arrDistToMass_axe.Count;
+
+                            if (arrDistToMass_axe.Count > 0)
+                            {
+                                arrDistToGG_axe.Clear();
+                                foreach (var gg2 in ggBag)
+                                {
+                                    if (Math.Abs(ggPos1 - gg2.Position[_horz1]) < gravityFeild_horz1 &&
+                                        Math.Abs(ggPos2 - gg2.Position[_horz2]) < gravityFeild_horz2)
+                                    {
+                                        arrDistToGG_axe.Add(Math.Abs(gg2.Position[_axe] - ggPosAxe)+1);
+                                    }
+                                }
+
+                                arrDistToMass_axe.Sort();
+                                arrDistToGG_axe.Sort();
+
+                                // pgr.Me.CustomData += "\n arrAxeDistMass : ";
+                                // arrDistToMass_axe.ForEach(dist => pgr.Me.CustomData += dist + ",");
+                                // pgr.Me.CustomData += "\n arrDistToGG_axe : " ;
+                                // arrDistToGG_axe.ForEach(dist => pgr.Me.CustomData += dist + ",");
+
+
+                                nbGg = arrDistToGG_axe.Count;
+                                nbMass = arrDistToMass_axe.Count;
+
+                                while (nbMass > 0)
+                                {
+
+                                    // ((X-1)*2+1) * ((X-1)*2+1) = (2X -1)*(2Y - 1) = 4XY - 2X - 2Y +1
+                                    nextGravityFeild_axe = arrDistToMass_axe[nbMass - 1];
+
+                                    while (nbGg > 0 && arrDistToGG_axe[nbGg - 1] > nextGravityFeild_axe)
+                                        --nbGg;
+
+
+                                    var nextVolume = gravityFeildPave_horz1 * gravityFeildPave_horz2 * (nextGravityFeild_axe * 2 - 1);
+
+                                    float filling = (100f * nbMass) / (nextVolume - nbGg);
+
+
+                                    if (filling >= fillingLimit)
+                                        break;
+
+                                    --nbGg;
+                                    while (nbMass > 0 && arrDistToMass_axe[nbMass - 1] == nextGravityFeild_axe)
+                                        --nbMass;
+
+                                } 
+
+
+                            }
+
+                            //We need to test the 2 next axes to be sure there is not better feild
+                            if (nextGravityFeild_axe != currentGravityFeild[_axe])
+                            {
+                                nbAxesToTest = 2;
+
+                                currentGravityFeild[_axe] = nextGravityFeild_axe;
+                                currentGravityFeildPave[_axe] = nextGravityFeild_axe * 2 - 1;
+                                //pgr.Me.CustomData += "\n new SIZE ! : " + nextGravityFeild_axe + ", " + currentGravityFeildPave[_axe];
+
+                            }
+
+                            #region old
+                            //var axeMassBag = massBag.FindAll(mass =>
+                            //    Math.Abs(ggPos1 - mass.Position[horz1]) < nextGravityFeildHorz1 &&
+                            //    Math.Abs(ggPos2 - mass.Position[horz2]) < nextGravityFeildHorz2
+                            //);
+
+
+
+
+
+                            /*
+                            KeepIncreasing increaseStep;
+                            nextGravityFeild[axe] += oneStep[axe];
+                            nextGravityFeildPave[axe] += oneStep[axe] * 2;
+
+                            var nextVolume = nextGravityFeildPave.X * nextGravityFeildPave.Y * nextGravityFeildPave.Z;
+
+                            //Counting of nb mass are added with this new gravity feild
+
+                            //to do that, we count all graviton thruster ellement who are -> NOT <- in the gravity feild
+                            int ggWidth = nextGravityFeild.X, ggHeight = nextGravityFeild.Y, ggLenght = nextGravityFeild.Z;
+                            var smallerMassBag = massBag.FindAll(mass =>
+                                Math.Abs(Xgg - mass.Position.X) >= ggWidth ||
+                                Math.Abs(Ygg - mass.Position.Y) >= ggHeight ||
+                                Math.Abs(Zgg - mass.Position.Z) >= ggLenght
+                            );
+                            var nbNewMass = massBag.Count - smallerMassBag.Count;
+
+                            if (ARTIFICIAL_MASS_MUST_BE_CONNEX && nbNewMass == 0)
+                            {
+                                //if we have not found new mass, and if we cannot go threw no mass block, we refuse the increasing
+                                increaseStep = KeepIncreasing.reject;
+
+                            }
+                            else
+                            {
+                                nbNextMass = nbMass + nbNewMass;
+                                float filling = (100f * nbNextMass) / (nextVolume - nbGg);
+
+                                //if we reach the filling limit, we substract the number of gravity generator and look again the fillingLimit
+                                if (filling < fillingLimit)
+                                {
+                                    smallerGgBag = ggBag.FindAll(ggForeign =>
+                                        Math.Abs(Xgg - ggForeign.Position.X) >= ggWidth ||
+                                        Math.Abs(Ygg - ggForeign.Position.Y) >= ggHeight ||
+                                        Math.Abs(Zgg - ggForeign.Position.Z) >= ggLenght
+                                    );
+                                    nbNextGg = nbGg + ggBag.Count - smallerGgBag.Count;
+                                    filling = (100f * nbNextMass) / (nextVolume - nbNextGg);
+                                }
+
+                                // we decrease the filling limite at beginning
+                                startingFillingLimit[axe] = (int) ( fillingLimit * ((100f * nextGravityFeildPave[axe]-2) / nextGravityFeildPave[axe]));
+
+
+                                if (filling < startingFillingLimit[axe] / 100f)
+                                    increaseStep = KeepIncreasing.reject;
+                                else if (nbNewMass == 0 || filling < fillingLimit)
+                                    increaseStep = KeepIncreasing.needToSeeFurther;
+                                else
+                                    increaseStep = KeepIncreasing.accept;
+                            }
+
+                            switch (increaseStep)
+                            {
+                                case KeepIncreasing.accept:
+                                    atLeastOneAxisHasIncrease = true;
+                                    currentGravityFeildPave = nextGravityFeildPave;
+
+                                    massBag = smallerMassBag;
+                                    nbMass = nbNextMass;
+
+                                    ggBag = smallerGgBag;
+                                    nbGg = nbNextGg;
+
+                                    oneStep[axe] = 1;
+
+                                    break;
+                                case KeepIncreasing.reject:
+                                    nextGravityFeild[axe] -= oneStep[axe];
+                                    nextGravityFeildPave[axe] -= oneStep[axe] * 2;
+                                    oneStep[axe] = 1;
+
+                                    break;
+                                case KeepIncreasing.needToSeeFurther:
+                                    nextGravityFeild[axe] -= oneStep[axe];
+                                    nextGravityFeildPave[axe] -= oneStep[axe] * 2;
+                                    oneStep[axe] += 1;
+                                    atLeastOneAxisHasIncrease = true;
+
+                                    break;
+                            }
+
+                            */
+
+                            #endregion
+
+                            if (++nbTry % 20 == 0)
+                                yield return ("AUTO_FIT_GRAVITY_FEILD\nGenerator " + currentGG + "/" + nbGravityGen); //Do a pause
+                        }
+
+                        Vector3 orienttedGravityFeild = new Vector3();
+
+                        Matrix Bship_2_BGravityGenerator = default(Matrix);
+
+                        gg.Orientation.GetMatrix(out Bship_2_BGravityGenerator);
+
+                        Vector3 currentGravityFeildFloat = currentGravityFeildPave;
+                        Bship_2_BGravityGenerator =  Matrix.Transpose(Bship_2_BGravityGenerator);
+
+                        Vector3.RotateAndScale(ref currentGravityFeildFloat, ref Bship_2_BGravityGenerator, out orienttedGravityFeild);
+
+                        orienttedGravityFeild.X = Math.Abs(orienttedGravityFeild.X) * 2.5f;
+                        orienttedGravityFeild.Y = Math.Abs(orienttedGravityFeild.Y) * 2.5f;
+                        orienttedGravityFeild.Z = Math.Abs(orienttedGravityFeild.Z) * 2.5f;
+
+                        gg.FieldSize = orienttedGravityFeild;
+
+
+                        gg.Orientation.GetMatrix(out Bship_2_BGravityGenerator);
+                        yield return ("AUTO_FIT_GRAVITY_FEILD\nGenerator " + currentGG + "/" + nbGravityGen + "\n"); //Do a pause
+
+                    }
+
+                    firstCompute = false;
+                }
+
 
                 List<SharedMass> allShrGravityMass = new List<SharedMass>();
                 allGravityMass.ForEach(mass => allShrGravityMass.Add(new SharedMass(mass)));
+
+
 
                 //Sort gravity component
 
@@ -201,8 +422,60 @@ namespace IngameScript
                     }
 
                 }
+
+                if (RENAME_GRAVITY_GENERATOR)
+                {
+                    yield return ("");
+                    RenameGravityGenerator();
+                }
+            }
+
+            public void SetPower(Vector3 Direction_Bship)
+            {
+                for (int i = 0; i < LeftRight_thruster_Bship.Count; ++i)
+                    LeftRight_thruster_Bship[i].Thrust = ThrustFactorComposator_Bship_kN[0][i] * Direction_Bship.X;
+                for (int i = 0; i < UpDown_thruster_Bship.Count; ++i)
+                    UpDown_thruster_Bship[i].Thrust = ThrustFactorComposator_Bship_kN[1][i] * Direction_Bship.Y;
+                for (int i = 0; i < BackForw_thruster_Bship.Count; ++i)
+                    BackForw_thruster_Bship[i].Thrust = ThrustFactorComposator_Bship_kN[2][i] * Direction_Bship.Z;
+            }
+
+            #region computeShipState
+            //find the good cockpit
+            bool findCockpit()
+            {
+                List<IMyCockpit> allCockpit = new List<IMyCockpit>();
+
+                pgr.GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
+                m_arrCockpit = new List<AdvanceCockpit>();
+
+                if (allCockpit.Count == 0)
+                {
+                    LogError("No cockit who can control thrusters found. Look about Owner of the Programmable block.");
+                    if(pgr.Me.OwnerId == 0)
+                        LogMsg("WARNING ! Your programable block has \"Nobody\" owner. Try to set Programmable block on same owner as your cockpit, or set also your cockpit on \"Nobody\" owner");
+
+                    pgr.GridTerminalSystem.GetBlocksOfType(allCockpit);
+                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ": ").Append(cock.CanControlShip ? "":"\ncan't controll ship").Append(cock.ControlThrusters ? "": "\ncan't controll thrusters").Append(cock.IsWorking ? "": "\nIs power off"));
+
+                    return false;
+                }
+                else
+                { //If there is at least 1 cockpits
+
+                    IMyCockpit mainCockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
+                    if (mainCockpit == null)
+                    {   //If there is no "Main Cockpit", we take alls of them
+                        allCockpit.ForEach(cockpit => m_arrCockpit.Add(new AdvanceCockpit(cockpit)));
+                    }
+                    else
+                    {  //Else we take only the main cockpit
+                        m_arrCockpit.Add(new AdvanceCockpit(mainCockpit));
+                    }
+                }
                 return true;
             }
+
 
             //return true untile the computation of news optimal coefficients isn't finished 
             IEnumerator<bool> LaunchSimplexComputation(int nbStepPerTicks)
@@ -235,7 +508,8 @@ namespace IngameScript
                     }
                     else
                     {
-                        LogError("Cannot compute thruster balance\nSet 'const bool USE_DEBUG = true' \non the top of script and recompile\n to see more info");
+                        LogError("Cannot compute thruster balance.");
+                        LogMsg("\nSet 'const bool USE_DEBUG = true' on the top of script and recompile to see more info");
                         pgr.Me.CustomData = strLog.ToString();
                     }
 
@@ -272,10 +546,8 @@ namespace IngameScript
             }
             #endregion
 
-            public void LaunchOptimTools()
+            public void RenameGravityGenerator()
             {
-                if (!USE_OPTYM_TOOLS)
-                    return;
 
                 if (RENAME_GRAVITY_GENERATOR)
                 {
@@ -287,7 +559,7 @@ namespace IngameScript
                     int i = 0;
                     if (LR.X != 0)
                         LeftRight_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen LR{i++}");
-                    else if(LR.Y != 0)
+                    else if (LR.Y != 0)
                         LeftRight_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen UD{i++}");
                     else
                         LeftRight_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen FB{i++}");
@@ -308,33 +580,6 @@ namespace IngameScript
                     else
                         BackForw_thruster_Bship.ForEach(gravThr => gravThr.m_gravGen.CustomName = $"GravGen FB{i++}");
                 }
-
-                if(FIT_GRAVITY_FEILD)
-                {
-                    LeftRight_thruster_Bship.ForEach(gravThr => {
-                        Vector3I newFeild = new Vector3I(
-                            (int)(gravThr.m_gravGen.FieldSize.X / 2.5),
-                            (int)(gravThr.m_gravGen.FieldSize.Y / 2.5),
-                            (int)(gravThr.m_gravGen.FieldSize.Z / 2.5));
-                        gravThr.m_gravGen.FieldSize = newFeild * 2.5;
-                        });
-
-                    UpDown_thruster_Bship.ForEach(gravThr => {
-                        Vector3I newFeild = new Vector3I(
-                            (int)(gravThr.m_gravGen.FieldSize.X / 2.5),
-                            (int)(gravThr.m_gravGen.FieldSize.Y / 2.5),
-                            (int)(gravThr.m_gravGen.FieldSize.Z / 2.5));
-                        gravThr.m_gravGen.FieldSize = newFeild * 2.5;
-                    });
-
-                    BackForw_thruster_Bship.ForEach(gravThr => {
-                        Vector3I newFeild = new Vector3I(
-                            (int)(gravThr.m_gravGen.FieldSize.X / 2.5),
-                            (int)(gravThr.m_gravGen.FieldSize.Y / 2.5),
-                            (int)(gravThr.m_gravGen.FieldSize.Z / 2.5));
-                        gravThr.m_gravGen.FieldSize = newFeild * 2.5;
-                    });
-                }
             }
 
             #region logTools
@@ -343,16 +588,36 @@ namespace IngameScript
             {
                 LogMsg("\nERROR: " + errorMsg);
             }
+
+
+            // Print a message to user on Programmable block main screen
             public void LogMsg(string msg)
             {
-                var partSize = 60;
-                var parts = Enumerable.Range(0, (msg.Length + partSize - 1) / partSize)
-                    .Select(i => msg.Substring(i * partSize, Math.Min(msg.Length - i * partSize, partSize)));
+                var maxCharPerLine = 43;
+                int lastSpace = 0;
+                int lastPrint = 0;
+                for(int i=0; lastPrint + maxCharPerLine < msg.Length; ++i)
+                {
+                    if (msg[lastPrint + i] == '\n')
+                    {
+                        strLog.AppendLine(msg.Substring(lastPrint, i+1));
+                        lastPrint += i+1;
+                        i = 0;
+                        continue;
+                    }
+                    else if (msg[lastPrint + i] == ' ')
+                        lastSpace = i;
 
-                foreach (string str in parts)
-                    strLog.Append(str).AppendLine();
+                    if (i >= maxCharPerLine)
+                    {
+                        strLog.AppendLine(msg.Substring(lastPrint, lastSpace+1));
+                        lastPrint += lastSpace+1;
+                        i -= lastSpace;
+                    }
+
+                }
+                strLog.AppendLine(msg.Substring(lastPrint));
             }
-
             public void LogV3(Vector3D v, string title, string units)
             {
                 var str = new StringBuilder(title).AppendLine();
@@ -366,7 +631,7 @@ namespace IngameScript
             void logPerformances()
             {
                 strLog.Append($" Reset every {nbStepUsedToCompute / 6}sec\n");
-                if(m_arrCockpit.Count > 1)
+                if (m_arrCockpit.Count > 1)
                     LogMsg("(X,Y,Z) seen from cockpit '" + m_arrCockpit[0].m_cockpit.CustomName + "'\n");
 
                 LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration :", "m/s²");
