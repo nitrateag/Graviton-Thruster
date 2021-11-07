@@ -56,7 +56,7 @@ namespace IngameScript
             public List<MyGravitonThruster> UpDown_thruster_Bship;
 
 
-            public List<AdvanceCockpit> m_arrCockpit = null;
+            public List<AdvanceControlShip> m_arrControlShip = null;
 
             public Vector3D centerOfMass_Bship;
 
@@ -131,7 +131,9 @@ namespace IngameScript
 
                 if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
                 {
-                    LogError($"We didn't found yours thruster component :\n - functional gravity generators found = {allGravityGen.Count}\n - functional artificial masses found = {allGravityMass.Count}\nTry to set all yours gravity thrusters component in a same group \"{GROUP_NAME_OF_THRUSTER_COMPONENT}\"");
+                    LogError($"We didn't found your thruster component :\n - functional gravity generators found = {allGravityGen.Count}\n - functional artificial masses found = {allGravityMass.Count}\n");
+                    if (pgr.Me.OwnerId == 0)
+                        LogMsg("WARNING ! Your programable block has \"Nobody\" owner. Try to set Programmable block on same owner as your thruster components, or set also your thruster components on \"Nobody\" owner\n");
                     yield break;
                 }
 
@@ -445,32 +447,48 @@ namespace IngameScript
             bool findCockpit()
             {
                 List<IMyCockpit> allCockpit = new List<IMyCockpit>();
+                List<IMyRemoteControl> allRemote = new List<IMyRemoteControl>();
 
                 pgr.GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
-                m_arrCockpit = new List<AdvanceCockpit>();
+                pgr.GridTerminalSystem.GetBlocksOfType(allRemote, remote => remote.CanControlShip && remote.ControlThrusters && remote.IsWorking);
 
-                if (allCockpit.Count == 0)
+                m_arrControlShip = new List<AdvanceControlShip>();
+
+                if (allCockpit.Count == 0 && allRemote.Count == 0)
                 {
-                    LogError("No cockit who can control thrusters found. Look about Owner of the Programmable block.");
+                    LogError("No cockit/remote_control who can control thrusters found. Look about Owner of the Programmable block.");
                     if(pgr.Me.OwnerId == 0)
                         LogMsg("WARNING ! Your programable block has \"Nobody\" owner. Try to set Programmable block on same owner as your cockpit, or set also your cockpit on \"Nobody\" owner");
 
                     pgr.GridTerminalSystem.GetBlocksOfType(allCockpit);
-                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ": ").Append(cock.CanControlShip ? "":"\ncan't controll ship").Append(cock.ControlThrusters ? "": "\ncan't controll thrusters").Append(cock.IsWorking ? "": "\nIs power off"));
+                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ": ").Append(cock.CanControlShip ? "":"\ncan't controll ship").Append(cock.ControlThrusters ? "": "\ncan't controll thrusters").Append(cock.IsWorking ? "": "\nIs power off/endomaged ..."));
+
+                    pgr.GridTerminalSystem.GetBlocksOfType(allRemote);
+                    allRemote.ForEach(remote => strLog.AppendLine().Append(remote.CustomName + ": ").Append(remote.CanControlShip ? "" : "\ncan't controll ship").Append(remote.ControlThrusters ? "" : "\ncan't controll thrusters").Append(remote.IsWorking ? "" : "\nIs power off/endomaged ..."));
 
                     return false;
                 }
                 else
-                { //If there is at least 1 cockpits
+                { //If there is at least 1 cockpits/remoteControl
 
                     IMyCockpit mainCockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
                     if (mainCockpit == null)
                     {   //If there is no "Main Cockpit", we take alls of them
-                        allCockpit.ForEach(cockpit => m_arrCockpit.Add(new AdvanceCockpit(cockpit)));
+                        allCockpit.ForEach(cockpit => m_arrControlShip.Add(new AdvanceControlShip(cockpit)));
                     }
                     else
                     {  //Else we take only the main cockpit
-                        m_arrCockpit.Add(new AdvanceCockpit(mainCockpit));
+                        m_arrControlShip.Add(new AdvanceControlShip(mainCockpit));
+                    }
+
+                    IMyRemoteControl mainRemote = allRemote.FirstOrDefault(remote => remote.IsMainCockpit);
+                    if (mainRemote == null)
+                    {   //If there is no "Main Cockpit", we take alls of them
+                        allRemote.ForEach(remote => m_arrControlShip.Add(new AdvanceControlShip(remote)));
+                    }
+                    else
+                    {  //Else we take only the main cockpit
+                        m_arrControlShip.Add(new AdvanceControlShip(mainRemote));
                     }
                 }
                 return true;
@@ -481,7 +499,7 @@ namespace IngameScript
             IEnumerator<bool> LaunchSimplexComputation(int nbStepPerTicks)
             {
                 //Recording of distances :
-                centerOfMass_Bship = m_arrCockpit[0].m_cockpit.CenterOfMass - pgr.Me.CubeGrid.GetPosition(); //ship's center of mass in the base of ship but oriented in Absolute/World base
+                centerOfMass_Bship = m_arrControlShip[0].m_shipControl.CenterOfMass - pgr.Me.CubeGrid.GetPosition(); //ship's center of mass in the base of ship but oriented in Absolute/World base
                 Vector3D.Rotate(ref centerOfMass_Bship, ref Babs_2_Bship, out centerOfMass_Bship);
 
 
@@ -520,7 +538,7 @@ namespace IngameScript
                 }
 
 
-                shipMass = m_arrCockpit[0].m_cockpit.CalculateShipMass().TotalMass;
+                shipMass = m_arrControlShip[0].m_shipControl.CalculateShipMass().TotalMass;
 
 
                 ThrustFactorComposator_Bship_kN = torqueComposator.OptimalThrustPowerPerThruster_kN;
@@ -535,7 +553,7 @@ namespace IngameScript
                 maxSpeedBy10Ticks_Bship_ms_noZero = (maximumThrustPerSide_Bship_kN_noZero * 1000) / (shipMass * 6); // *6 because ther is 60 ticks pers second, so each 10Ticks is 1/6 seconds
 
                 //Send thrust characteristics to user
-                maximumThrustPerSide_Bcock_kN = m_arrCockpit[0].Bship_2_Bcock(new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
+                maximumThrustPerSide_Bcock_kN = m_arrControlShip[0].Bship_2_Bcock(new Vector3(torqueComposator.sumOptimalThrustPowerPerSide_kN[0],
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[2]));
 
@@ -552,9 +570,9 @@ namespace IngameScript
                 if (RENAME_GRAVITY_GENERATOR)
                 {
                     //LeftRight
-                    var LR = m_arrCockpit[0].Bship_2_Bcock(new Vector3(1, 0, 0));
-                    var UD = m_arrCockpit[0].Bship_2_Bcock(new Vector3(0, 1, 0));
-                    var FB = m_arrCockpit[0].Bship_2_Bcock(new Vector3(0, 0, 1));
+                    var LR = m_arrControlShip[0].Bship_2_Bcock(new Vector3(1, 0, 0));
+                    var UD = m_arrControlShip[0].Bship_2_Bcock(new Vector3(0, 1, 0));
+                    var FB = m_arrControlShip[0].Bship_2_Bcock(new Vector3(0, 0, 1));
 
                     int i = 0;
                     if (LR.X != 0)
@@ -600,7 +618,7 @@ namespace IngameScript
                 {
                     if (msg[lastPrint + i] == '\n')
                     {
-                        strLog.AppendLine(msg.Substring(lastPrint, i+1));
+                        strLog.Append(msg.Substring(lastPrint, i+1));
                         lastPrint += i+1;
                         i = 0;
                         continue;
@@ -631,8 +649,8 @@ namespace IngameScript
             void logPerformances()
             {
                 strLog.Append($" Reset every {nbStepUsedToCompute / 6}sec\n");
-                if (m_arrCockpit.Count > 1)
-                    LogMsg("(X,Y,Z) seen from cockpit '" + m_arrCockpit[0].m_cockpit.CustomName + "'\n");
+                if (m_arrControlShip.Count > 1)
+                    LogMsg("(X,Y,Z) seen from cockpit '" + m_arrControlShip[0].m_shipControl.CustomName + "'\n");
 
                 LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration :", "m/s²");
                 LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000), "Maximum Thrust :", "N");
@@ -646,7 +664,7 @@ namespace IngameScript
                     theoricMaximumThrust_Bship.Y == 0 ? 0 : 100 * maximumThrustPerSide_Bship_kN_noZero.Y / theoricMaximumThrust_Bship.Y,
                     theoricMaximumThrust_Bship.Z == 0 ? 0 : 100 * maximumThrustPerSide_Bship_kN_noZero.Z / theoricMaximumThrust_Bship.Z);
 
-                LogV3(Vector3.Abs(m_arrCockpit[0].Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
+                LogV3(Vector3.Abs(m_arrControlShip[0].Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
             }
             public override string ToString()
             {
@@ -705,7 +723,7 @@ namespace IngameScript
                 foreach (MyGravitonThruster ggD in BackForw_thruster_Bship)
                     str3Debug_Bship[2].Append(ggD.ToString() + "\n");
 
-                m_arrCockpit.ForEach(advCock => advCock.DebugThrusters(str3Debug_Bship));
+                m_arrControlShip.ForEach(advCock => advCock.DebugThrusters(str3Debug_Bship));
 
 
                 return;
@@ -716,7 +734,7 @@ namespace IngameScript
                 if (!USE_DEBUG)
                     return;
 
-                m_arrCockpit.ForEach(advCock => advCock.PrintDebug(strDebug, strLog));
+                m_arrControlShip.ForEach(advCock => advCock.PrintDebug(strDebug, strLog));
                 strDebug.Clear();
             }
             #endregion

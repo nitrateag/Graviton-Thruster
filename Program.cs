@@ -213,26 +213,24 @@ namespace IngameScript
         #endregion
 
 
-
-
         public void moveShip(ref StateOfShip ship)
         {
-            Vector3D speed_Bship = ship.m_arrCockpit[0].m_cockpit.GetShipVelocities().LinearVelocity;
+            Vector3D speed_Bship = ship.m_arrControlShip[0].m_shipControl.GetShipVelocities().LinearVelocity;
             Vector3D.Rotate(ref speed_Bship, ref Babs_2_Bship, out speed_Bship);
 
 
             if(USE_DEBUG)
-                ship.m_arrCockpit.ForEach(advCock => advCock.DebugSpeed(ref speed_Bship));
+                ship.m_arrControlShip.ForEach(advCock => advCock.DebugSpeed(ref speed_Bship));
 
 
             Vector3 allCockpitInput_Bship = new Vector3(0, 0, 0);
-            ship.m_arrCockpit.ForEach(advCock => allCockpitInput_Bship += advCock.getMoveIndicator_Bship());
+            ship.m_arrControlShip.ForEach(advCock => allCockpitInput_Bship += advCock.getMoveIndicator_Bship());
 
             if(allCockpitInput_Bship.AbsMax() > 1)
                 allCockpitInput_Bship /= allCockpitInput_Bship.AbsMax();
 
             Vector3 direction_Bship;
-            if (ship.m_arrCockpit[0].m_cockpit.DampenersOverride)
+            if (ship.m_arrControlShip[0].m_shipControl.DampenersOverride)
             {
                 var dampenersMoveIndicator = -speed_Bship / ship.maxSpeedBy10Ticks_Bship_ms_noZero;
                 if (dampenersMoveIndicator.AbsMax() > 1)

@@ -20,16 +20,19 @@ namespace IngameScript
 {
     partial class Program
     {
-        public class AdvanceCockpit
+        public class AdvanceControlShip
         {
+            public IMyShipController m_shipControl;
+
             public IMyCockpit m_cockpit;
+            public IMyRemoteControl m_remote;
 
             //Matrice to change a vector in base absolute to base of cockpit
             public MatrixD Babs_2_Bcockpit
             {
                 get
                 {
-                    return MatrixD.Transpose(m_cockpit.WorldMatrix); //Transpose is quicker than invert, and equivalent in this case
+                    return MatrixD.Transpose(m_shipControl.WorldMatrix); //Transpose is quicker than invert, and equivalent in this case
                 }
             } 
 
@@ -42,20 +45,22 @@ namespace IngameScript
             IMyTextSurface lcd2;
             IMyTextSurface lcd3;
 
-            public AdvanceCockpit(IMyCockpit cockpit)
+            public AdvanceControlShip(IMyCockpit cockpit)
             {
+                m_shipControl = cockpit;
                 m_cockpit = cockpit;
+                m_remote = null;
 
                 Matrix cockOrientation = new Matrix();
-                m_cockpit.Orientation.GetMatrix(out cockOrientation);
+                m_shipControl.Orientation.GetMatrix(out cockOrientation);
                 rotation_Bcockpit_2_Bship = cockOrientation;
                 rotation_Bship_2_Bcockpit = MatrixD.Transpose(rotation_Bcockpit_2_Bship); //Transpose is quicker than invert, and equivalent in this case
 
-                if(USE_DEBUG)
+                if (USE_DEBUG)
                 {
                     lcd1 = m_cockpit.GetSurface(0);
                     setFont(lcd1);
-                    if(m_cockpit.SurfaceCount > 1)
+                    if (m_cockpit.SurfaceCount > 1)
                     {
                         lcd2 = m_cockpit.GetSurface(1);
                         setFont(lcd2);
@@ -68,9 +73,23 @@ namespace IngameScript
                 }
             }
 
+            public AdvanceControlShip(IMyRemoteControl remote)
+            {
+                m_shipControl = remote;
+                m_cockpit = null;
+                m_remote = remote;
+
+                Matrix cockOrientation = new Matrix();
+                m_shipControl.Orientation.GetMatrix(out cockOrientation);
+                rotation_Bcockpit_2_Bship = cockOrientation;
+                rotation_Bship_2_Bcockpit = MatrixD.Transpose(rotation_Bcockpit_2_Bship); //Transpose is quicker than invert, and equivalent in this case
+
+                lcd1 = null;
+            }
+
             public Vector3 getMoveIndicator_Bship()
             {
-                return Bcock_2_Bship(m_cockpit.MoveIndicator);
+                return Bcock_2_Bship(m_shipControl.MoveIndicator);
             }
 
             #region debugTools
@@ -116,7 +135,7 @@ namespace IngameScript
 
             public void PrintDebug(StringBuilder additionalDebug, StringBuilder strLog)
             {
-                if (!USE_DEBUG)
+                if (!USE_DEBUG || lcd1 == null)
                     return;
 
                 strDebug.Append(additionalDebug).Append(strDebugThrust);

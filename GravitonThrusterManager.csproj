@@ -41,7 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AdvanceCockpit.cs" />
+    <Compile Include="AdvanceControlShip.cs" />
     <Compile Include="SharedMass.cs" />
     <Compile Include="MyGravitonThruster.cs" />
     <Compile Include="MDK\Bootstrapper.cs" />

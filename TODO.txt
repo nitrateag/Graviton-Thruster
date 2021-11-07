@@ -2,8 +2,10 @@
 - Verifier que le cryochamber ne pose pas de problemes >>>> OK <<<<
 
 - chercher des conctres-example à la construction du champ de gravité
-- Verifier le support du remote control ?
-   --> ne pas laisser un remote control en première place, car on s'en sert pour savoir l'orientation globale du vaisseau (Avant/Babor/Haut ...)
+- Verifier le support du remote control ? >>>> OK <<<<
+   --> ne pas laisser un remote control en première place, car on s'en sert pour savoir l'orientation globale du vaisseau (Avant/Babor/Haut ...) >>>> OK <<<<
+   --> verifier l'utilisation ndu "forwardContrl" dans l'ihm du jeu, dans le remote control
+       --> ça semble inutile ... Peut-etre même au point qu'il est préferable de l'utiliser en reference d'orientation du vaisseau !
 - Appairer les thruster qui ont le centre de poussé sur le même axe de pousser (ex, en axe Z, on associe les racteur aux position (4,2,9) et (4,2,-3) )
 - Ajouter le calcul de la rotation du vaiseau
    --> Limiter la viesse de rotation tel qu'on ne tue pas un passager à l'extremité du vaisseau
@@ -12,3 +14,4 @@
 - Problème de droit ! si le PC n'est aps construit par le meme gars qui construit les cockpit, ils ne sont pas visibles par le script !! >>>> OK <<<< >> ajout d'un essage d'ereur pou guider l'utilisqateur
 - Trier les gravity generator en forme de boule
 - Deplacer les parametrs en custom data pour ne pas changer les param utilisateur en cas de nouvelle version
+- Ajouter un Warnig pour epliciter PK il faut au moin 1 thruster, meme innutilisé ? (les dampeners ?)
