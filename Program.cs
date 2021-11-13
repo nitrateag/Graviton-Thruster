@@ -285,6 +285,7 @@ namespace IngameScript
             lcd.Font = "Monospace";
             lcd.FontSize = 0.6f;
             lcd.FontColor = new Color(100,200,100);
+            lcd.BackgroundColor = Color.Black;
             //lcd.FontColor = Color.PaleGreen;
             //lcd.FontColor = Color.LightGreen;
         }
@@ -426,6 +427,8 @@ namespace IngameScript
             else if (!NewStateOfShipNeedMoreComputeTime.MoveNext())
             {
                 //Compute finished !
+
+                stateOfShip[idNextStateOfShip].colorScreen();
 
                 if (stateOfShip[idNextStateOfShip].isReadyToUse)
                 {

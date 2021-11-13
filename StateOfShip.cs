@@ -29,6 +29,8 @@ namespace IngameScript
         public class StateOfShip
         {
             public bool isReadyToUse = false;
+            public bool isWarning = false;
+            public bool isError = false;
             public int nbStepUsedToCompute = 0;
 
             public float shipMass;
@@ -75,6 +77,8 @@ namespace IngameScript
             {
                 strLog.Clear().Append("::GRAVITY THRUSTER::");
                 isReadyToUse = false;
+                isError = false;
+                isWarning = false;
                 nbStepUsedToCompute = 0;
 
                 if (!findCockpit())
@@ -119,6 +123,18 @@ namespace IngameScript
                 }
                 
                 SimplexNeedMoreComputationTime.Dispose();
+
+
+                //Check if everything is ok
+
+                List<IMyThrust> allBasicThrust = new List<IMyThrust>();
+                pgr.GridTerminalSystem.GetBlocksOfType(allBasicThrust);
+                if(allBasicThrust.Count == 0)
+                {
+                    LogMsg("              !!! WARNING !!!\nYou need at least ONE classic thruster to unlock \"dampeners\" in your cockpit.\nYou can keep this unique thruster shutDown.\nAn Atmospheric Thruster is possible.");
+
+                    isWarning = true;
+                }
             }
 
             public IEnumerable<string> FindAllGravitonThruster()
@@ -144,6 +160,7 @@ namespace IngameScript
 
                 if (allGravityMass.Count == 0 || allGravityGen.Count == 0)
                 {
+                    isError = true;
                     LogError($"We didn't found your thruster component :\n - functional gravity generators found = {allGravityGen.Count}\n - functional artificial masses found = {allGravityMass.Count}\n");
                     if (pgr.Me.OwnerId == 0)
                         LogMsg("WARNING ! Your programable block has \"Nobody\" owner. Try to set Programmable block on same owner as your thruster components, or set also your thruster components on \"Nobody\" owner\n");
@@ -188,6 +205,36 @@ namespace IngameScript
                         int _axe = 2;
 
                         int nbTry = 0;
+
+                        // serch of best axe to begin, a wrong start can have bad result
+                        // the best axe is wich has most artificial mass in one direction (1 cube of large)
+                        int bestAxe = 0;
+                        int nbMassInBestAxe = 0;
+                        while (nbAxesToTest-- > 0)
+                        {
+                            nbMass = 0;
+                            _axe = (++_axe) % 3;
+                            int _horz1 = (_axe + 1) % 3, _horz2 = (_axe + 2) % 3;
+                            int ggPos1 = gg.Position[_horz1], ggPos2 = gg.Position[_horz2], ggPosAxe = gg.Position[_axe];
+                            foreach (var mass in massBag)
+                            {
+                                if (Math.Abs(ggPos1 - mass.Position[_horz1]) < 1 &&
+                                    Math.Abs(ggPos2 - mass.Position[_horz2]) < 1)
+                                {
+                                    ++nbMass;
+                                }
+                            }
+
+                            if(nbMass > nbMassInBestAxe)
+                            {
+                                nbMassInBestAxe = nbMass;
+                                bestAxe = _axe;
+                            }
+
+                            ++nbTry;
+                        }
+                        _axe = (bestAxe + 2) % 3;
+                        nbAxesToTest = 3;
 
                         //While there is some axes of gravity feild to increase
                         while (nbAxesToTest-- > 0)
@@ -378,25 +425,27 @@ namespace IngameScript
                                 yield return ("AUTO_FIT_GRAVITY_FEILD\nGenerator " + currentGG + "/" + nbGravityGen); //Do a pause
                         }
 
-                        Vector3 orienttedGravityFeild = new Vector3();
-
-                        Matrix Bship_2_BGravityGenerator = default(Matrix);
-
-                        gg.Orientation.GetMatrix(out Bship_2_BGravityGenerator);
-
                         Vector3 currentGravityFeildFloat = currentGravityFeildPave;
-                        Bship_2_BGravityGenerator =  Matrix.Transpose(Bship_2_BGravityGenerator);
 
-                        Vector3.RotateAndScale(ref currentGravityFeildFloat, ref Bship_2_BGravityGenerator, out orienttedGravityFeild);
+                        if (currentGravityFeildFloat.Max() > 1f)
+                        {
+                            Vector3 orienttedGravityFeild = new Vector3();
 
-                        orienttedGravityFeild.X = Math.Abs(orienttedGravityFeild.X) * 2.5f;
-                        orienttedGravityFeild.Y = Math.Abs(orienttedGravityFeild.Y) * 2.5f;
-                        orienttedGravityFeild.Z = Math.Abs(orienttedGravityFeild.Z) * 2.5f;
+                            Matrix Bship_2_BGravityGenerator = default(Matrix);
 
-                        gg.FieldSize = orienttedGravityFeild;
+                            gg.Orientation.GetMatrix(out Bship_2_BGravityGenerator);
 
+                            Bship_2_BGravityGenerator =  Matrix.Transpose(Bship_2_BGravityGenerator);
 
-                        gg.Orientation.GetMatrix(out Bship_2_BGravityGenerator);
+                            Vector3.RotateAndScale(ref currentGravityFeildFloat, ref Bship_2_BGravityGenerator, out orienttedGravityFeild);
+
+                            orienttedGravityFeild.X = Math.Abs(orienttedGravityFeild.X) * 2.5f;
+                            orienttedGravityFeild.Y = Math.Abs(orienttedGravityFeild.Y) * 2.5f;
+                            orienttedGravityFeild.Z = Math.Abs(orienttedGravityFeild.Z) * 2.5f;
+
+                            gg.FieldSize = orienttedGravityFeild;
+                        }
+
                         yield return ("AUTO_FIT_GRAVITY_FEILD\nGenerator " + currentGG + "/" + nbGravityGen + "\n"); //Do a pause
 
                     }
@@ -455,7 +504,7 @@ namespace IngameScript
             }
 
             #region computeShipState
-            //find the good cockpit
+            //find the good cockpits
             public bool findCockpit()
             {
                 List<IMyCockpit> allCockpit = new List<IMyCockpit>();
@@ -468,15 +517,16 @@ namespace IngameScript
 
                 if (allCockpit.Count == 0 && allRemote.Count == 0)
                 {
+                    isError = true;
                     LogError("No cockit/remote_control who can control thrusters found. Look about Owner of the Programmable block.");
                     if(pgr.Me.OwnerId == 0)
                         LogMsg("WARNING ! Your programable block has \"Nobody\" owner. Try to set Programmable block on same owner as your cockpit, or set also your cockpit on \"Nobody\" owner");
 
                     pgr.GridTerminalSystem.GetBlocksOfType(allCockpit);
-                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ": ").Append(cock.CanControlShip ? "":"\ncan't controll ship").Append(cock.ControlThrusters ? "": "\ncan't controll thrusters").Append(cock.IsWorking ? "": "\nIs power off/endomaged ..."));
+                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ":\n").Append(cock.CanControlShip ? "":"can't controll ship").Append(cock.ControlThrusters ? "": "can't controll thrusters").Append(cock.IsWorking ? "": "Is power off/endomaged ..."));
 
                     pgr.GridTerminalSystem.GetBlocksOfType(allRemote);
-                    allRemote.ForEach(remote => strLog.AppendLine().Append(remote.CustomName + ": ").Append(remote.CanControlShip ? "" : "\ncan't controll ship").Append(remote.ControlThrusters ? "" : "\ncan't controll thrusters").Append(remote.IsWorking ? "" : "\nIs power off/endomaged ..."));
+                    allRemote.ForEach(remote => strLog.AppendLine().Append(remote.CustomName + ":\n").Append(remote.CanControlShip ? "" : "can't controll ship").Append(remote.ControlThrusters ? "" : "can't controll thrusters").Append(remote.IsWorking ? "" : "Is power off/endomaged ..."));
 
                     return false;
                 }
@@ -530,6 +580,7 @@ namespace IngameScript
                 isReadyToUse = torqueComposator.success;
                 if (!isReadyToUse)
                 {
+                    isError = true;
                     if (USE_DEBUG)
                     {
                         LogError("Cannot compute thruster balance, see custom data of program bloc for more info");
@@ -748,6 +799,25 @@ namespace IngameScript
 
                 m_arrControlShip.ForEach(advCock => advCock.PrintDebug(strDebug, strLog));
                 strDebug.Clear();
+            }
+
+            public void colorScreen()
+            {
+                if (isError)
+                {
+                    pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
+                    pgr.Me.GetSurface(0).FontColor = Color.Red;
+                }
+                else if (isWarning)
+                {
+                    pgr.Me.GetSurface(0).BackgroundColor = new Color(180, 180, 0);
+                    pgr.Me.GetSurface(0).FontColor = Color.Black;
+                }
+                else
+                {
+                    pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
+                    pgr.Me.GetSurface(0).FontColor = new Color(100,200,100);
+                }
             }
             #endregion
         }
