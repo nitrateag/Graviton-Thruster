@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -75,6 +75,7 @@ namespace IngameScript
             {
                 strLog.Clear().Append("::GRAVITY THRUSTER::");
                 isReadyToUse = false;
+                nbStepUsedToCompute = 0;
 
                 if (!findCockpit())
                     yield break;// it's impossible to continue without cockpits, so we wait to have one
@@ -99,13 +100,25 @@ namespace IngameScript
 
                 IEnumerator<bool> SimplexNeedMoreComputationTime = LaunchSimplexComputation(nbStepsPerTikcs);
 
+
                 while (SimplexNeedMoreComputationTime.MoveNext())
-                    yield return ""; // ("Compute best power balance\n(torque compensator)"); //Do a pause
+                {
+                    switch (++nbStepUsedToCompute % 3)
+                    {
+                        case 1:
+                            yield return "Simplex is computing\n best power balance .\n"; //Do a pause
+                            break;
+                        case 2:
+                            yield return "Simplex is computing\n best power balance ..\n";
+                            break;
+                        default:
+                            yield return "Simplex is computing\n best power balance ...\n";
+                            break;
+                    }
+                    //yield return "Simplex computing"; // ("Compute best power balance\n(torque compensator)"); //Do a pause
+                }
                 
-
-
                 SimplexNeedMoreComputationTime.Dispose();
-
             }
 
             public IEnumerable<string> FindAllGravitonThruster()
@@ -387,8 +400,6 @@ namespace IngameScript
                         yield return ("AUTO_FIT_GRAVITY_FEILD\nGenerator " + currentGG + "/" + nbGravityGen + "\n"); //Do a pause
 
                     }
-
-                    firstCompute = false;
                 }
 
 
@@ -427,6 +438,7 @@ namespace IngameScript
 
                 if (RENAME_GRAVITY_GENERATOR)
                 {
+                    ++nbStepUsedToCompute;
                     yield return ("");
                     RenameGravityGenerator();
                 }
@@ -444,7 +456,7 @@ namespace IngameScript
 
             #region computeShipState
             //find the good cockpit
-            bool findCockpit()
+            public bool findCockpit()
             {
                 List<IMyCockpit> allCockpit = new List<IMyCockpit>();
                 List<IMyRemoteControl> allRemote = new List<IMyRemoteControl>();
@@ -640,20 +652,20 @@ namespace IngameScript
             {
                 var str = new StringBuilder(title).AppendLine();
 
-                str.Append("X:" + (v.X > 0 ? " " : "") + numSi(v.X) + units);
-                str.Append(" Y:" + (v.Y > 0 ? " " : "") + numSi(v.Y) + units);
-                str.Append(" Z:" + (v.Z > 0 ? " " : "") + numSi(v.Z) + units);
+                str.Append("LR:" + (v.X > 0 ? " " : "") + numSi(v.X) + units);
+                str.Append(" UP:" + (v.Y > 0 ? " " : "") + numSi(v.Y) + units);
+                str.Append(" FB:" + (v.Z > 0 ? " " : "") + numSi(v.Z) + units);
                 LogMsg(str.ToString());
             }
 
             void logPerformances()
             {
-                strLog.Append($" Reset every {nbStepUsedToCompute / 6}sec\n");
+                strLog.Append($"\nSimplex compute time ≤ {nbStepUsedToCompute / 6}sec\n\n(LR,UP,FB) = (LeftRight, UpDown, FrontBack)\n");
                 if (m_arrControlShip.Count > 1)
-                    LogMsg("(X,Y,Z) seen from cockpit '" + m_arrControlShip[0].m_shipControl.CustomName + "'\n");
+                    LogMsg("seen from cockpit \"" + m_arrControlShip[0].m_shipControl.CustomName + "\"\n");
 
-                LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration :", "m/s²");
-                LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000), "Maximum Thrust :", "N");
+                LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000 / shipMass), "Maximum Acceleration [meter/second²]:", "m/s²");
+                LogV3(Vector3.Abs(maximumThrustPerSide_Bcock_kN * 1000), "Maximum Thrust [Newtown]:", "N");
 
                 Vector3 theoricMaximumThrust_Bship = new Vector3(LeftRight_thruster_Bship.Sum(gravThrust => gravThrust.m_maximumThrust_kN),
                                                                  UpDown_thruster_Bship.Sum(gravThrust => gravThrust.m_maximumThrust_kN),

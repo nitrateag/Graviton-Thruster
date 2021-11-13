@@ -93,8 +93,10 @@ namespace IngameScript
             }
 
             #region debugTools
-            public void DebugSpeed(ref Vector3D speed_Bship)
+            public void DebugSpeed()
             {
+                Vector3D speed_Bship = m_shipControl.GetShipVelocities().LinearVelocity;
+
                 var rotBase = Babs_2_Bcockpit;
                 Vector3D speed_Bcock;
                 Vector3D.Rotate(ref speed_Bship, ref rotBase, out speed_Bcock);

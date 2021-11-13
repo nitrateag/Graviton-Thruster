@@ -25,8 +25,8 @@ namespace IngameScript
             public IMyGravityGenerator m_gravGen;
             List<SharedMass> m_mass = new List<SharedMass>(26);
             public Base6Directions.Axis axe;
-            public readonly float m_artificialMass_kg;  //In tonne or Mega grammes
-            public readonly float m_maximumThrust_kN;   //In Mega Newtown
+            public readonly float m_artificialMass_kg;  //In kilo grammes
+            public readonly float m_maximumThrust_kN;   //In kilo Newtown
             short m_orientationThrusterCorrection;
             Vector3D m_position;
             StringBuilder debugStr = new StringBuilder();

@@ -16,6 +16,7 @@ using VRage.Game;
 using VRageMath;
 
 
+
 //https://github.com/malware-dev/MDK-SE/wiki/SpaceEngineers.Game.ModAPI.Ingame.IMyGravityGenerator
 
 //https://github.com/malware-dev/MDK-SE/wiki/Sandbox.ModAPI.Ingame.IMyShipController
@@ -53,58 +54,82 @@ namespace IngameScript
         // time to see what a utility class looks like.
 
 
-        #region mdk preserve
+        //#region mdk preserve
 
         ////////////////////////  Thruster architecture  ///////////////////////////////////////////
 
-        const bool AUTO_FIT_GRAVITY_FEILD = true;
-        // Let us find the shape of your gravity thruster. it will seek for all mass which
-        // is close to each gravity generator. This operation can take a long time, but need to
-        // be launch ONLY ONCE TIME PER SHIP. Don't hesitate to desactivate it if you want a quicker 
-        // startup of the script
+        static bool AUTO_FIT_GRAVITY_FEILD = false;
+        string com_autoFit = @"
+ Let the script find the shape of your gravity thruster.
+ It will seek for all mass which is close to each gravity generator.
+ This operation can take a long time,
+ but need to be launch ONLY ONCE TIME PER SHIP.
+ Don't hesitate to desactivate it if you want a quicker startup of the script.";
 
 
-        const float FILLING_OF_GRAVITY_FEILD = 70;  // FILLING_OF_GRAVITY_FEILD = [1 .. 100], in %
-        // Define the percent of artificial mass must be present in the gravity feild
-        // Gravity generator is not include in this calculation
-        // High value tend the feild to not overextend outside artificial mass, safer for passenger
-        // But Hight value can miss some artifficial mass if the gravity generator isn't in the 
-        // middle of all artificial mass
+        static float FILLING_OF_GRAVITY_FEILD = 70;
+        string com_filling = @"
+ Define the percent of artificial mass must be present in the gravity feild
+ Gravity generator is not include in this calculation
+ High value tend the feild to not overextend outside artificial mass, 
+ that is safer for passenger
+ But Hight value can miss some artifficial mass if the gravity generator 
+ isn't in the middle of all artificial mass.
+ => FILLING_OF_GRAVITY_FEILD = [1.0 .. 100.0], in %";
 
 
         ////////////////////////  Thrusters components  ///////////////////////////////////////////
         
-        const string GROUP_NAME_OF_THRUSTER_COMPONENT = "Graviton Thruster";
-        // If you don't want the script use all your gravity generators and/or all your artificial mass,
-        // group the components for the script under the "Graviton Thruster" name.
-        // You can also use a name of your choice, but write it in GROUP_NAME_OF_THRUSTER_COMPONENT variable 
+        static string GROUP_NAME_OF_THRUSTER_COMPONENT = "Graviton Thruster";
+        string com_groupName = @"
+ If you don't want the script use all your gravity generators and/or 
+ all your artificial mass, group the components for the script under 
+ the ""Graviton Thruster"" name.
+ You can also use a name of your choice, but write it 
+ in GROUP_NAME_OF_THRUSTER_COMPONENT variable.";
 
 
-        const bool RENAME_GRAVITY_GENERATOR = true;
-        // Let the script rename all gravity generator that it use to easily find it.
-        // (LR = Left-Righ, UD = Up-Down, FB = Forward-Backward)
-        // Usefull when you prefer to design the gravity feild by yourself
+        static bool RENAME_GRAVITY_GENERATOR = false;
+        string com_rename = @"
+ Let the script rename all gravity generator that it use to easily find it.
+ (LR = Left-Righ, UD = Up-Down, FB = Forward-Backward)
+ Usefull when you prefer to design the gravity feild by yourself.";
 
 
         ////////////////////////  Time optimisation  ///////////////////////////////////////////
 
-        const int NB_SIMPLEX_STEPS_PER_TICKS = 20;
-        //Number of steps to compute every 10 ticks for the Simplex algorithm
-        //High number increase rate of script updating, but can decrease game performances. 
-        //Too higher number can block the script if you are using a LOT OF gravity generator
+        static int NB_SIMPLEX_STEPS_PER_TICKS = 20;
+        string com_nbSimplex = @"
+ Number of steps to compute every 10 ticks for the Simplex algorithm
+ High number increase rate of script updating,
+ but can decrease game performances. 
+ Too higher number can block the script if you are
+ using a LOT OF gravity generator.";
 
 
         ////////////////////////  Developper option  ///////////////////////////////////////////
-        //
-        //Display every thrusters on cockpit LCD
-        const bool USE_DEBUG = true;
-        //
-        //
-        //
-        #endregion
+        
+        
+        static bool USE_DEBUG = false;
+        string com_useDebug = "\n Display every thrusters on cockpit LCD.";
+        
+        
+        static bool COMPUTE_NEW_STATS_SHIP_EVERY_TIME = false;
+        
+        //#endregion
 
 
         static bool firstCompute;
+
+        const string about = @"
+---------------------
+ Developped with Malware's Development Kit for Space Engineers (MDK-SE)
+ https://github.com/malware-dev/MDK-SE
+ 
+ Any bug ? suggestion ? Want to contribute ?
+ https://github.com/nitrateag/Graviton-Thruster
+---------------------
+";
 
         StateOfShip[] stateOfShip;
         int idCurrentStateOfShip;
@@ -115,7 +140,11 @@ namespace IngameScript
 
 
         public static MatrixD Babs_2_Bship; //Matrice to change a vector in base absolute to base of cockpit
+        Vector3D m_centerOfMass_Bship_atEndComputation =  new Vector3D(0, 0, 0); //ship's center of mass in the base of ship but oriented in Absolute/World base
 
+
+
+        MyIni param_ini = new MyIni();
         public Program()
         {
 
@@ -129,6 +158,36 @@ namespace IngameScript
             // It's recommended to set RuntimeInfo.UpdateFrequency 
             // here, which will allow your script to run itself without a 
             // timer block.
+
+            // Me.CustomData = defaultParam_ini;
+            bool needResetIni = false;
+            MyIniParseResult result;
+            if (!param_ini.TryParse(Me.CustomData, out result))
+            {
+                Me.CustomData = "";
+                param_ini.TryParse("", out result);
+
+                needResetIni = true;
+            }
+            param_ini.AddSection("Thruster_architecture");
+            param_ini.SetSectionComment("Thruster_architecture", " Each modifiaction need a recompile to be apply\n Delete a line \"Key = Value\" to recover default value\n (or delete all Custom data)");
+
+            needResetIni |= getOrAddIniBool("Thruster_architecture", "AUTO_FIT_GRAVITY_FEILD", ref AUTO_FIT_GRAVITY_FEILD, com_autoFit);
+            needResetIni |= getOrAddIniFloat("Thruster_architecture", "FILLING_OF_GRAVITY_FEILD", ref FILLING_OF_GRAVITY_FEILD, com_filling);
+
+            needResetIni |= getOrAddIniString("Thrusters_components", "GROUP_NAME_OF_THRUSTER_COMPONENT", ref GROUP_NAME_OF_THRUSTER_COMPONENT, com_groupName);
+            needResetIni |= getOrAddIniBool("Thrusters_components", "RENAME_GRAVITY_GENERATOR", ref RENAME_GRAVITY_GENERATOR, com_rename);
+
+            needResetIni |= getOrAddIniInt("Time_optimisation", "NB_SIMPLEX_STEPS_PER_TICKS", ref NB_SIMPLEX_STEPS_PER_TICKS, com_nbSimplex);
+
+            param_ini.AddSection("Developper_option");
+            param_ini.SetSectionComment("Developper_option", about);
+
+            needResetIni |= getOrAddIniBool("Developper_option", "USE_DEBUG", ref USE_DEBUG, com_useDebug);
+            needResetIni |= getOrAddIniBool("Developper_option", "COMPUTE_NEW_STATS_SHIP_EVERY_TIME", ref COMPUTE_NEW_STATS_SHIP_EVERY_TIME);
+
+            if(needResetIni)
+                Me.CustomData = param_ini.ToString();
 
 
             setFont(Me.GetSurface(0));
@@ -153,6 +212,61 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Once | UpdateFrequency.Update10;
 
         }
+
+        #region iniRegion
+        private bool getOrAddIniFloat(string section, string key, ref float val, string description = "\n")
+        {
+            MyIniValue iniVal = param_ini.Get(section, key);
+            if (iniVal.IsEmpty)
+            {
+                param_ini.Set(section, key, val);
+                param_ini.SetComment(section, key, description);
+                return true;
+            }
+            val = iniVal.ToSingle();
+            return false;
+        }
+
+        private bool getOrAddIniBool(string section, string key, ref bool val, string description = "\n")
+        {
+            MyIniValue iniVal = param_ini.Get(section, key);
+            if (iniVal.IsEmpty)
+            {
+                param_ini.Set(section, key, val);
+                param_ini.SetComment(section, key, description);
+                return true;
+            }
+            val = iniVal.ToBoolean();
+            return false;
+        }
+
+        private bool getOrAddIniString(string section, string key, ref string val, string description = "\n")
+        {
+            MyIniValue iniVal = param_ini.Get(section, key);
+            if (iniVal.IsEmpty)
+            {
+                param_ini.Set(section, key, val);
+                param_ini.SetComment(section, key, description);
+                return true;
+            }
+            val = iniVal.ToString();
+            return false;
+        }
+
+        private bool getOrAddIniInt(string section, string key, ref int val, string description = "\n")
+        {
+            MyIniValue iniVal = param_ini.Get(section, key);
+            if (iniVal.IsEmpty)
+            {
+                param_ini.Set(section, key, val);
+                param_ini.SetComment(section, key, description);
+                return true;
+            }
+            val = iniVal.ToInt32();
+            return false;
+        }
+
+        #endregion
 
         public void Save()
         {
@@ -220,7 +334,7 @@ namespace IngameScript
 
 
             if(USE_DEBUG)
-                ship.m_arrControlShip.ForEach(advCock => advCock.DebugSpeed(ref speed_Bship));
+                ship.m_arrControlShip.ForEach(advCock => advCock.DebugSpeed());
 
 
             Vector3 allCockpitInput_Bship = new Vector3(0, 0, 0);
@@ -256,7 +370,7 @@ namespace IngameScript
 
 
         int currentTik = 0;
-
+        int currentTik2 = 0;
         public void Main(string argument, UpdateType updateSource)
         {
             // The main entry point of the script, invoked every time
@@ -269,6 +383,7 @@ namespace IngameScript
             // The method itself is required, but the arguments above
             // can be removed if not needed.
             ++currentTik;
+            ++currentTik2;
             Babs_2_Bship = MatrixD.Transpose(Me.CubeGrid.WorldMatrix); //Need to be actualized every time because it follow the ship orientation in world base
 
             StringBuilder strKeyboard = new StringBuilder();
@@ -279,63 +394,88 @@ namespace IngameScript
 
                 if (USE_DEBUG)
                 {
-                    stateOfShip[idCurrentStateOfShip].DebugLn("CurrentTick : " + currentTik);
                     stateOfShip[idCurrentStateOfShip].DebugThrusters();
                     stateOfShip[idCurrentStateOfShip].PrintDebug();
                 }
+            }
 
 
-                double progess = Math.Round(currentTik * 10d / stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute);
-
-                strKeyboard.Append("[");
-                for (int i = 0; i <= 10; ++i)
+            if(NewStateOfShipNeedMoreComputeTime == null)
+            {
+                //We check if we need a new computation every 10 tik
+                if(COMPUTE_NEW_STATS_SHIP_EVERY_TIME || currentTik % 10 == 0)
                 {
-                    if (i < progess)
-                        strKeyboard.Append("\u25A0");
+                    //we chek if the center of mass had move from 10cm
+                    bool centerMassHasMove = (m_centerOfMass_Bship_atEndComputation - (stateOfShip[idCurrentStateOfShip].m_arrControlShip[0].m_shipControl.CenterOfMass - Me.CubeGrid.GetPosition())).AbsMax() > 0.1;
+
+                    if (COMPUTE_NEW_STATS_SHIP_EVERY_TIME || centerMassHasMove)
+                    {
+
+                        //launch a new computation
+                        NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
+                        currentTik = 0;
+                    }
                     else
-                        strKeyboard.Append("-");
+                    {
+                        //We actualise the pool of controller
+                        stateOfShip[idCurrentStateOfShip].findCockpit();
+                    }
                 }
 
-                strKeyboard.Append($"] {(stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute - currentTik) / 6}sec\n");
             }
-            else
-            {
-                strKeyboard.Append("First computing" + setUserWaiting());
-            }
-
-            
-            
-            if (!NewStateOfShipNeedMoreComputeTime.MoveNext())
+            else if (!NewStateOfShipNeedMoreComputeTime.MoveNext())
             {
                 //Compute finished !
 
                 if (stateOfShip[idNextStateOfShip].isReadyToUse)
                 {
-                    //lastDirection_Bship = new Vector3();
-
                     idCurrentStateOfShip = idNextStateOfShip;
                     idNextStateOfShip = (idCurrentStateOfShip + 1) % 2;
-                    stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute = currentTik;
+
+                    //We record the curent position of center of mass
+                    m_centerOfMass_Bship_atEndComputation = stateOfShip[idCurrentStateOfShip].m_arrControlShip[0].m_shipControl.CenterOfMass - Me.CubeGrid.GetPosition();
 
                     Me.GetSurface(0).WriteText(stateOfShip[idCurrentStateOfShip].ToString());
 
                     NewStateOfShipNeedMoreComputeTime.Dispose();
-                    NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
+                    NewStateOfShipNeedMoreComputeTime = null;
+
+                   firstCompute = false;
                 }
                 else
                 {
                     Me.GetSurface(0).WriteText(stateOfShip[idNextStateOfShip].ToString());
                     Me.GetSurface(1).WriteText(Me.GetSurface(1).GetText() + setUserWaiting());
                     Echo(Me.GetSurface(0).GetText());
-                };
 
-                NewStateOfShipNeedMoreComputeTime.Dispose();
-                NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
+                    //we relaunch the calcul
+                    NewStateOfShipNeedMoreComputeTime.Dispose();
+                    NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
+                };
 
                 currentTik = 0;
             }
             else
             {
+                //Compute is not finished
+
+                if(!firstCompute)
+                {
+                    double progess = Math.Round(currentTik * 10d / stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute);
+
+                    strKeyboard.Append("[");
+                    for (int i = 0; i <= 10; ++i)
+                    {
+                        if (i < progess)
+                            strKeyboard.Append("\u25A0");
+                        else
+                            strKeyboard.Append("-");
+                    }
+
+                    strKeyboard.Append($"] {(stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute - currentTik) / 6}sec\n");
+                }
+
+
                 strKeyboard.Append(NewStateOfShipNeedMoreComputeTime.Current);
             }
 
