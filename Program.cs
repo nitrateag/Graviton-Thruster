@@ -371,7 +371,7 @@ namespace IngameScript
 
 
         int currentTik = 0;
-        int currentTik2 = 0;
+        //int currentTik2 = 0;
         public void Main(string argument, UpdateType updateSource)
         {
             // The main entry point of the script, invoked every time
@@ -384,32 +384,25 @@ namespace IngameScript
             // The method itself is required, but the arguments above
             // can be removed if not needed.
             ++currentTik;
-            ++currentTik2;
+            //++currentTik2;
             Babs_2_Bship = MatrixD.Transpose(Me.CubeGrid.WorldMatrix); //Need to be actualized every time because it follow the ship orientation in world base
 
             StringBuilder strKeyboard = new StringBuilder();
 
-            if (stateOfShip[idCurrentStateOfShip].isReadyToUse)
-            {
-                moveShip(ref stateOfShip[idCurrentStateOfShip]);
-
-                if (USE_DEBUG)
-                {
-                    stateOfShip[idCurrentStateOfShip].DebugThrusters();
-                    stateOfShip[idCurrentStateOfShip].PrintDebug();
-                }
-            }
-
-
+            //If there is no current computing
             if(NewStateOfShipNeedMoreComputeTime == null)
             {
                 //We check if we need a new computation every 10 tik
                 if(COMPUTE_NEW_STATS_SHIP_EVERY_TIME || currentTik % 10 == 0)
                 {
-                    //we chek if the center of mass had move from 10cm
-                    bool centerMassHasMove = (m_centerOfMass_Bship_atEndComputation - (stateOfShip[idCurrentStateOfShip].m_arrControlShip[0].m_shipControl.CenterOfMass - Me.CubeGrid.GetPosition())).AbsMax() > 0.1;
+                    //we chek if the center of mass had move of 10cm
 
-                    if (COMPUTE_NEW_STATS_SHIP_EVERY_TIME || centerMassHasMove)
+                    bool centerMassHasMove = false;
+                    if (stateOfShip[idCurrentStateOfShip].m_arrControlShip.Count() > 0)
+                        centerMassHasMove = (m_centerOfMass_Bship_atEndComputation - (stateOfShip[idCurrentStateOfShip].m_arrControlShip[0].m_shipControl.CenterOfMass - Me.CubeGrid.GetPosition())).AbsMax() > 0.1;
+                    
+
+                    if (COMPUTE_NEW_STATS_SHIP_EVERY_TIME || centerMassHasMove || !stateOfShip[idCurrentStateOfShip].isReadyToUse)
                     {
 
                         //launch a new computation
@@ -420,49 +413,15 @@ namespace IngameScript
                     {
                         //We actualise the pool of controller
                         stateOfShip[idCurrentStateOfShip].findCockpit();
+                        stateOfShip[idCurrentStateOfShip].PrintLog();
                     }
                 }
 
             }
-            else if (!NewStateOfShipNeedMoreComputeTime.MoveNext())
-            {
-                //Compute finished !
-
-                stateOfShip[idNextStateOfShip].colorScreen();
-
-                if (stateOfShip[idNextStateOfShip].isReadyToUse)
-                {
-                    idCurrentStateOfShip = idNextStateOfShip;
-                    idNextStateOfShip = (idCurrentStateOfShip + 1) % 2;
-
-                    //We record the curent position of center of mass
-                    m_centerOfMass_Bship_atEndComputation = stateOfShip[idCurrentStateOfShip].m_arrControlShip[0].m_shipControl.CenterOfMass - Me.CubeGrid.GetPosition();
-
-                    Me.GetSurface(0).WriteText(stateOfShip[idCurrentStateOfShip].ToString());
-
-                    NewStateOfShipNeedMoreComputeTime.Dispose();
-                    NewStateOfShipNeedMoreComputeTime = null;
-
-                   firstCompute = false;
-                }
-                else
-                {
-                    Me.GetSurface(0).WriteText(stateOfShip[idNextStateOfShip].ToString());
-                    Me.GetSurface(1).WriteText(Me.GetSurface(1).GetText() + setUserWaiting());
-                    Echo(Me.GetSurface(0).GetText());
-
-                    //we relaunch the calcul
-                    NewStateOfShipNeedMoreComputeTime.Dispose();
-                    NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
-                };
-
-                currentTik = 0;
-            }
-            else
+            else if (NewStateOfShipNeedMoreComputeTime.MoveNext())
             {
                 //Compute is not finished
-
-                if(!firstCompute)
+                if (!firstCompute)
                 {
                     double progess = Math.Round(currentTik * 10d / stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute);
 
@@ -478,8 +437,50 @@ namespace IngameScript
                     strKeyboard.Append($"] {(stateOfShip[idCurrentStateOfShip].nbStepUsedToCompute - currentTik) / 6}sec\n");
                 }
 
-
                 strKeyboard.Append(NewStateOfShipNeedMoreComputeTime.Current);
+            }
+            else
+            {
+                //Compute finished !
+
+                if (stateOfShip[idNextStateOfShip].isReadyToUse)
+                {
+                    idCurrentStateOfShip = idNextStateOfShip;
+                    idNextStateOfShip = (idCurrentStateOfShip + 1) % 2;
+
+                    //We record the curent position of center of mass
+                    m_centerOfMass_Bship_atEndComputation = stateOfShip[idCurrentStateOfShip].m_arrControlShip[0].m_shipControl.CenterOfMass - Me.CubeGrid.GetPosition();
+
+                    stateOfShip[idCurrentStateOfShip].PrintLog();
+
+                    NewStateOfShipNeedMoreComputeTime.Dispose();
+                    NewStateOfShipNeedMoreComputeTime = null;
+
+                    firstCompute = false;
+                }
+                else
+                {
+                    stateOfShip[idNextStateOfShip].PrintLog();
+                    Me.GetSurface(1).WriteText(Me.GetSurface(1).GetText() + setUserWaiting());
+                    Echo(Me.GetSurface(0).GetText());
+
+                    //we relaunch the calcul
+                    NewStateOfShipNeedMoreComputeTime.Dispose();
+                    NewStateOfShipNeedMoreComputeTime = stateOfShip[idNextStateOfShip].ComputeNewStateMachine_OverTime(NB_SIMPLEX_STEPS_PER_TICKS);
+                };
+
+                currentTik = 0;
+            }
+
+            if (stateOfShip[idCurrentStateOfShip].isReadyToUse)
+            {
+                moveShip(ref stateOfShip[idCurrentStateOfShip]);
+
+                if (USE_DEBUG)
+                {
+                    stateOfShip[idCurrentStateOfShip].DebugThrusters();
+                    stateOfShip[idCurrentStateOfShip].PrintDebug();
+                }
             }
 
             Me.GetSurface(1).WriteText(strKeyboard.ToString());

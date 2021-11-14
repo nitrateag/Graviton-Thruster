@@ -58,7 +58,7 @@ namespace IngameScript
             public List<MyGravitonThruster> UpDown_thruster_Bship;
 
 
-            public List<AdvanceControlShip> m_arrControlShip = null;
+            public List<AdvanceControlShip> m_arrControlShip = new List<AdvanceControlShip>();
 
             public Vector3D centerOfMass_Bship;
 
@@ -510,20 +510,20 @@ namespace IngameScript
                 List<IMyCockpit> allCockpit = new List<IMyCockpit>();
                 List<IMyRemoteControl> allRemote = new List<IMyRemoteControl>();
 
-                pgr.GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsWorking);
-                pgr.GridTerminalSystem.GetBlocksOfType(allRemote, remote => remote.CanControlShip && remote.ControlThrusters && remote.IsWorking);
+                pgr.GridTerminalSystem.GetBlocksOfType(allCockpit, cockpit => cockpit.CanControlShip && cockpit.ControlThrusters && cockpit.IsFunctional);
+                pgr.GridTerminalSystem.GetBlocksOfType(allRemote, remote => remote.CanControlShip && remote.ControlThrusters && remote.IsFunctional);
 
-                m_arrControlShip = new List<AdvanceControlShip>();
 
                 if (allCockpit.Count == 0 && allRemote.Count == 0)
                 {
                     isError = true;
+                    isReadyToUse = false;
                     LogError("No cockit/remote_control who can control thrusters found. Look about Owner of the Programmable block.");
                     if(pgr.Me.OwnerId == 0)
                         LogMsg("WARNING ! Your programable block has \"Nobody\" owner. Try to set Programmable block on same owner as your cockpit, or set also your cockpit on \"Nobody\" owner");
 
                     pgr.GridTerminalSystem.GetBlocksOfType(allCockpit);
-                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ":\n").Append(cock.CanControlShip ? "":"can't controll ship").Append(cock.ControlThrusters ? "": "can't controll thrusters").Append(cock.IsWorking ? "": "Is power off/endomaged ..."));
+                    allCockpit.ForEach(cock => strLog.AppendLine().Append(cock.CustomName + ":\n").Append(cock.CanControlShip ? "":"can't controll ship ").Append(cock.ControlThrusters ? "": "can't controll thrusters ").Append(cock.IsFunctional ? "": "is endomaged "));
 
                     pgr.GridTerminalSystem.GetBlocksOfType(allRemote);
                     allRemote.ForEach(remote => strLog.AppendLine().Append(remote.CustomName + ":\n").Append(remote.CanControlShip ? "" : "can't controll ship").Append(remote.ControlThrusters ? "" : "can't controll thrusters").Append(remote.IsWorking ? "" : "Is power off/endomaged ..."));
@@ -532,6 +532,7 @@ namespace IngameScript
                 }
                 else
                 { //If there is at least 1 cockpits/remoteControl
+                    m_arrControlShip.Clear();
 
                     IMyCockpit mainCockpit = allCockpit.FirstOrDefault(cockpit => cockpit.IsMainCockpit);
                     if (mainCockpit == null)
@@ -729,9 +730,25 @@ namespace IngameScript
 
                 LogV3(Vector3.Abs(m_arrControlShip[0].Bship_2_Bcock(thrusterPosition_efficiency_Bship)), "Position Efficiency :", "%");
             }
-            public override string ToString()
+            public void PrintLog()
             {
-                return strLog.ToString();
+                if (isError)
+                {
+                    pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
+                    pgr.Me.GetSurface(0).FontColor = Color.Red;
+                }
+                else if (isWarning)
+                {
+                    pgr.Me.GetSurface(0).BackgroundColor = new Color(180, 180, 0);
+                    pgr.Me.GetSurface(0).FontColor = Color.Black;
+                }
+                else
+                {
+                    pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
+                    pgr.Me.GetSurface(0).FontColor = new Color(100, 200, 100);
+                } 
+
+                pgr.Me.GetSurface(0).WriteText(strLog.ToString());
             }
             #endregion
             #region debugTools
@@ -801,24 +818,7 @@ namespace IngameScript
                 strDebug.Clear();
             }
 
-            public void colorScreen()
-            {
-                if (isError)
-                {
-                    pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
-                    pgr.Me.GetSurface(0).FontColor = Color.Red;
-                }
-                else if (isWarning)
-                {
-                    pgr.Me.GetSurface(0).BackgroundColor = new Color(180, 180, 0);
-                    pgr.Me.GetSurface(0).FontColor = Color.Black;
-                }
-                else
-                {
-                    pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
-                    pgr.Me.GetSurface(0).FontColor = new Color(100,200,100);
-                }
-            }
+
             #endregion
         }
     }

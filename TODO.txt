@@ -6,6 +6,8 @@
    --> Actualiser le controle des cockpit (nouveaux cockpit/changement de droit d'utilisation ...) >>>> OK <<<<
    --> une option en debug pour actualiser en boucle  >>>> OK <<<<
 - Deplacer les parametrs en custom data pour ne pas changer les param utilisateur en cas de nouvelle version >>>> OK <<<<
+- chercher des contres-example à la construction du champ de gravité >>>> OK <<<<
+- Ajouter un Warnig pour expliciter PK il faut au moin 1 thruster, meme innutilisé ? (les dampeners ?) >>>> OK <<<<
 
 Partiel :
 - Verifier le support du remote control ? >>>> OK <<<<
@@ -15,15 +17,11 @@ Partiel :
 
 
 Prioritaire :
-- chercher des contres-example à la construction du champ de gravité
-
-
-- Ajouter un Warnig pour expliciter PK il faut au moin 1 thruster, meme innutilisé ? (les dampeners ?)
 
 
 à venir :
 - Appairer les thruster qui ont le centre de poussé sur le même axe de pousser (ex, en axe Z, on associe les racteur aux position (4,2,9) et (4,2,-3) )
 - Ajouter le calcul de la rotation du vaiseau
    --> Limiter la viesse de rotation tel qu'on ne tue pas un passager à l'extremité du vaisseau
-- Ajouter un cockpit fictif en cas d'abscence de cockpit pour arreter le vaisseau automatiquement
+
 
