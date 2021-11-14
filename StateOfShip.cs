@@ -25,7 +25,6 @@ namespace IngameScript
          * 
          */
 
-        private enum KeepReducing { accept, reject, needToSeeFurther }
         public class StateOfShip
         {
             public bool isReadyToUse = false;
@@ -75,7 +74,7 @@ namespace IngameScript
             // Manage the computation of the new state of ship
             public IEnumerator<string> ComputeNewStateMachine_OverTime(int nbStepsPerTikcs)
             {
-                strLog.Clear().Append("::GRAVITY THRUSTER::");
+                strLog.Clear();
                 isReadyToUse = false;
                 isError = false;
                 isWarning = false;
@@ -121,17 +120,23 @@ namespace IngameScript
                     }
                     //yield return "Simplex computing"; // ("Compute best power balance\n(torque compensator)"); //Do a pause
                 }
-                
+
                 SimplexNeedMoreComputationTime.Dispose();
 
 
                 //Check if everything is ok
 
+                checkWarnings();
+            }
+
+            public void checkWarnings()
+            {
+                isWarning = false;
                 List<IMyThrust> allBasicThrust = new List<IMyThrust>();
                 pgr.GridTerminalSystem.GetBlocksOfType(allBasicThrust);
-                if(allBasicThrust.Count == 0)
+                if (allBasicThrust.Count == 0)
                 {
-                    LogMsg("              !!! WARNING !!!\nYou need at least ONE classic thruster to unlock \"dampeners\" in your cockpit.\nYou can keep this unique thruster shutDown.\nAn Atmospheric Thruster is possible.");
+                    LogMsg("WARNING: You need at least ONE classic thruster to unlock \"dampeners\" in your cockpit.\nYou can keep this unique thruster shutDown.\nAn Atmospheric Thruster is possible.");
 
                     isWarning = true;
                 }
@@ -621,9 +626,6 @@ namespace IngameScript
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[1],
                                                                 torqueComposator.sumOptimalThrustPowerPerSide_kN[2]));
 
-                logPerformances();
-
-
                 SimplexNeedMoreComputeTime.Dispose();
             }
             #endregion
@@ -732,6 +734,8 @@ namespace IngameScript
             }
             public void PrintLog()
             {
+                logPerformances();
+
                 if (isError)
                 {
                     pgr.Me.GetSurface(0).BackgroundColor = Color.Black;
@@ -748,7 +752,8 @@ namespace IngameScript
                     pgr.Me.GetSurface(0).FontColor = new Color(100, 200, 100);
                 } 
 
-                pgr.Me.GetSurface(0).WriteText(strLog.ToString());
+                pgr.Me.GetSurface(0).WriteText("::GRAVITY THRUSTER::\n" + strLog.ToString());
+                strLog.Clear();
             }
             #endregion
             #region debugTools

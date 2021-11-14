@@ -393,7 +393,7 @@ namespace IngameScript
             if(NewStateOfShipNeedMoreComputeTime == null)
             {
                 //We check if we need a new computation every 10 tik
-                if(COMPUTE_NEW_STATS_SHIP_EVERY_TIME || currentTik % 10 == 0)
+                if(COMPUTE_NEW_STATS_SHIP_EVERY_TIME || currentTik % 15 == 0)
                 {
                     //we chek if the center of mass had move of 10cm
 
@@ -413,6 +413,7 @@ namespace IngameScript
                     {
                         //We actualise the pool of controller
                         stateOfShip[idCurrentStateOfShip].findCockpit();
+                        stateOfShip[idCurrentStateOfShip].checkWarnings();
                         stateOfShip[idCurrentStateOfShip].PrintLog();
                     }
                 }
